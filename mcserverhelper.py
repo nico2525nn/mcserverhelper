@@ -6,6 +6,9 @@ import shutil
 from datetime import datetime
 import json
 import platform
+import urllib.request
+import tarfile
+import threading
 
 # ==== Config loading (.env or config.json) ====
 # 設定ファイル: 実行ディレクトリ内の 'mcserve_helper_config.json'
@@ -27,6 +30,7 @@ DEFAULT_CONFIG = {
 
 # グローバルプロセスオブジェクト
 server_proc = None
+ownserver_proc = None
 
 
 def load_config():
@@ -180,69 +184,80 @@ def configure(cfg):
     save_config(cfg)
 
 
+def log_reader(process):
+    """
+    Ownserverのログを非同期で読み取る。
+    """
+    try:
+        for line in process.stdout:
+            print(line.strip())
+    except Exception as e:
+        print(f"ログ読み取り中にエラーが発生しました: {e}")
+
+
 def setup_and_run_ownserver():
     """
-    OwnserverCliのインストールと起動を行い、公開されたIPを表示する。
+    Ownserverのバイナリをダウンロードして解凍し、非ブロッキングで起動する。
     """
-    try:
-        # OwnserverCliがインストールされているか確認
-        result = subprocess.run(["ownserver", "--version"], capture_output=True, text=True)
-        if result.returncode == 0:
-            print("OwnserverCliは既にインストールされています。")
-        else:
-            raise FileNotFoundError
-    except FileNotFoundError:
-        print("OwnserverCliが見つかりません。インストールを開始します。")
-        # Cargoがインストールされているか確認
-        try:
-            subprocess.run(["cargo", "--version"], check=True, capture_output=True, text=True)
-        except FileNotFoundError:
-            print("Cargoが見つかりません。Rustをインストールします。")
-            if platform.system() == "Windows":
-                # Windows用のRustインストーラーをダウンロードして実行
-                rust_installer = "rustup-init.exe"
-                subprocess.run(["curl", "-o", rust_installer, "https://win.rustup.rs"], check=True)
-                subprocess.run([rust_installer, "-y"], check=True)
-                os.environ["PATH"] += os.pathsep + os.path.expanduser("~\\.cargo\\bin")
-            else:
-                # Unix系システム用のRustインストール
-                subprocess.run(["curl", "--proto", "=https", "--tlsv1.2", "-sSf", "https://sh.rustup.rs", "|", "sh", "-s", "--", "-y"], shell=True)
-                os.environ["PATH"] += os.pathsep + os.path.expanduser("~/.cargo/bin")
+    global ownserver_proc
+    # バイナリのダウンロードURL
+    binary_url = "https://github.com/Kumassy/ownserver/releases/download/v0.7.0/ownserver_v0.7.0_x86_64-pc-windows-gnu.zip"
+    binary_dir = "ownserver_bin"
+    binary_path = os.path.join(binary_dir, "ownserver.exe")
 
-        # Visual Studio Build Toolsの確認 (Windows環境のみ)
-        if platform.system() == "Windows":
-            try:
-                subprocess.run(["where", "link"], check=True, capture_output=True, text=True)
-            except subprocess.CalledProcessError:
-                print("エラー: Visual Studio Build Toolsがインストールされていません。")
-                print("以下のURLからインストールしてください: https://visualstudio.microsoft.com/visual-cpp-build-tools/")
-                return
+    # バイナリディレクトリを作成
+    ensure_dir(binary_dir)
 
-        # OwnserverCliのインストール
+    # バイナリをダウンロード
+    if not os.path.exists(binary_path):
+        print("Ownserverのバイナリをダウンロードしています...")
+        zip_path = os.path.join(binary_dir, "ownserver.zip")
         try:
-            subprocess.run(["cargo", "install", "ownserver"], check=True)
-        except subprocess.CalledProcessError as e:
-            print("Ownserverのインストール中にエラーが発生しました。")
-            print(e.stderr)
+            urllib.request.urlretrieve(binary_url, zip_path)
+            print("ダウンロード完了。解凍しています...")
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(binary_dir)
+            os.remove(zip_path)
+            print("解凍完了。")
+        except Exception as e:
+            print(f"バイナリのダウンロードまたは解凍中にエラーが発生しました: {e}")
             return
+    else:
+        print("既にバイナリが存在します。")
 
-    # OwnserverCliを起動
-    print("OwnserverCliを起動します...")
+    # Ownserverを非ブロッキングで起動
+    print("Ownserverを起動します...")
     try:
-        result = subprocess.run(
-            ["ownserver", "--", "--endpoint", "25565/tcp"],
-            capture_output=True,
+        ownserver_proc = subprocess.Popen(
+            [binary_path, "--endpoint", "25565/tcp"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True
         )
-        if result.returncode == 0:
-            print("Ownserverが正常に起動しました。")
-            print("公開されたIP:")
-            print(result.stdout)
-        else:
-            print("Ownserverの起動に失敗しました。")
-            print(result.stderr)
+        print(f"Ownserverがバックグラウンドで起動しました (PID: {ownserver_proc.pid})。")
+        print("公開されたIPを確認するには以下のログを参照してください:")
+
+        # ログを非同期で読み取るスレッドを開始
+        threading.Thread(target=log_reader, args=(ownserver_proc,), daemon=True).start()
     except Exception as e:
         print(f"Ownserverの起動中にエラーが発生しました: {e}")
+
+
+def stop_ownserver():
+    """
+    Ownserverを停止する。
+    """
+    global ownserver_proc
+    if ownserver_proc and ownserver_proc.poll() is None:
+        try:
+            ownserver_proc.terminate()
+            ownserver_proc.wait()
+            print("Ownserverを停止しました。")
+        except Exception as e:
+            print(f"Ownserverの停止中にエラーが発生しました: {e}")
+    else:
+        print("Ownserverは起動していません。")
+    ownserver_proc = None
 
 
 def main_menu():
@@ -261,6 +276,7 @@ def main_menu():
         print("[6] バックアップ復元")
         print("[7] 設定変更")
         print("[8] Ownserverを起動")
+        print("[9] Ownserverを停止")
         print("[0] 終了")
         choice = input(">> ")
         if choice == '1':
@@ -279,8 +295,11 @@ def main_menu():
             configure(cfg)
         elif choice == '8':
             setup_and_run_ownserver()
+        elif choice == '9':
+            stop_ownserver()
         elif choice == '0':
             stop_server()
+            stop_ownserver()
             print("終了します。")
             sys.exit(0)
         else:
