@@ -1,0 +1,10 @@
+{
+  "java_cmd": "java",
+  "jar_path": "server.jar",
+  "world_dir": "world",
+  "backup_dir": "backups",
+  "ops_file": "ops.json",
+  "whitelist_file": "whitelist.json",
+  "log_file": "logs/latest.log",
+  "eula_file": "eula.txt"
+}

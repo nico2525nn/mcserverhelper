@@ -180,6 +180,71 @@ def configure(cfg):
     save_config(cfg)
 
 
+def setup_and_run_ownserver():
+    """
+    OwnserverCliのインストールと起動を行い、公開されたIPを表示する。
+    """
+    try:
+        # OwnserverCliがインストールされているか確認
+        result = subprocess.run(["ownserver", "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("OwnserverCliは既にインストールされています。")
+        else:
+            raise FileNotFoundError
+    except FileNotFoundError:
+        print("OwnserverCliが見つかりません。インストールを開始します。")
+        # Cargoがインストールされているか確認
+        try:
+            subprocess.run(["cargo", "--version"], check=True, capture_output=True, text=True)
+        except FileNotFoundError:
+            print("Cargoが見つかりません。Rustをインストールします。")
+            if platform.system() == "Windows":
+                # Windows用のRustインストーラーをダウンロードして実行
+                rust_installer = "rustup-init.exe"
+                subprocess.run(["curl", "-o", rust_installer, "https://win.rustup.rs"], check=True)
+                subprocess.run([rust_installer, "-y"], check=True)
+                os.environ["PATH"] += os.pathsep + os.path.expanduser("~\\.cargo\\bin")
+            else:
+                # Unix系システム用のRustインストール
+                subprocess.run(["curl", "--proto", "=https", "--tlsv1.2", "-sSf", "https://sh.rustup.rs", "|", "sh", "-s", "--", "-y"], shell=True)
+                os.environ["PATH"] += os.pathsep + os.path.expanduser("~/.cargo/bin")
+
+        # Visual Studio Build Toolsの確認 (Windows環境のみ)
+        if platform.system() == "Windows":
+            try:
+                subprocess.run(["where", "link"], check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError:
+                print("エラー: Visual Studio Build Toolsがインストールされていません。")
+                print("以下のURLからインストールしてください: https://visualstudio.microsoft.com/visual-cpp-build-tools/")
+                return
+
+        # OwnserverCliのインストール
+        try:
+            subprocess.run(["cargo", "install", "ownserver"], check=True)
+        except subprocess.CalledProcessError as e:
+            print("Ownserverのインストール中にエラーが発生しました。")
+            print(e.stderr)
+            return
+
+    # OwnserverCliを起動
+    print("OwnserverCliを起動します...")
+    try:
+        result = subprocess.run(
+            ["ownserver", "--", "--endpoint", "25565/tcp"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            print("Ownserverが正常に起動しました。")
+            print("公開されたIP:")
+            print(result.stdout)
+        else:
+            print("Ownserverの起動に失敗しました。")
+            print(result.stderr)
+    except Exception as e:
+        print(f"Ownserverの起動中にエラーが発生しました: {e}")
+
+
 def main_menu():
     if not os.path.exists(CONFIG_FILE):
         cfg = initial_setup()
@@ -195,6 +260,7 @@ def main_menu():
         print("[5] バックアップ一覧")
         print("[6] バックアップ復元")
         print("[7] 設定変更")
+        print("[8] Ownserverを起動")
         print("[0] 終了")
         choice = input(">> ")
         if choice == '1':
@@ -211,6 +277,8 @@ def main_menu():
             restore_backup(cfg)
         elif choice == '7':
             configure(cfg)
+        elif choice == '8':
+            setup_and_run_ownserver()
         elif choice == '0':
             stop_server()
             print("終了します。")
