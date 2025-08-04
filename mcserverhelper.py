@@ -93,6 +93,41 @@ def start_server(cfg, xmx="1024M", xms="1024M"):
     if server_proc and server_proc.poll() is None:
         print("サーバーは既に起動しています。")
         return
+
+    # メモリサイズをGB単位で指定
+    try:
+        max_memory_gb = int(input("最大メモリサイズをGB単位で指定してください (例: 2): "))
+        min_memory_gb = int(input("最小メモリサイズをGB単位で指定してください (例: 1): "))
+        xmx = f"{max_memory_gb * 1024}M"
+        xms = f"{min_memory_gb * 1024}M"
+    except ValueError:
+        print("無効な入力です。デフォルト値を使用します。")
+
+    # 新しいワールドの場合、ワールドタイプを選択
+    world_dir = cfg['world_dir']
+    if not os.path.exists(world_dir) or not os.listdir(world_dir):
+        ensure_dir(world_dir)  # ワールドディレクトリを作成
+        print("新しいワールドを作成します。ワールドタイプを選択してください:")
+        print("[1] デフォルト")
+        print("[2] スーパーフラット")
+        print("[3] アンプリファイド")
+        print("[4] 大きなバイオーム")
+        print("[5] シングルバイオーム")
+        print("[6] デバッグモード")
+        choice = input(">> ")
+        level_type = {
+            '1': "default",
+            '2': "flat",
+            '3': "amplified",
+            '4': "largeBiomes",
+            '5': "singleBiome",
+            '6': "debug_all_block_states"
+        }.get(choice, "default")
+        print(f"選択されたワールドタイプ: {level_type}")
+        # server.properties ファイルを作成
+        with open(os.path.join(world_dir, "server.properties"), 'w', encoding='utf-8') as f:
+            f.write(f"level-type={level_type}\n")
+
     cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-jar", jar, "nogui"]
     server_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
     print(f"サーバーを起動しました (PID: {server_proc.pid})")
