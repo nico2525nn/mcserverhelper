@@ -1,0 +1,311 @@
+{
+  "motd": {
+    "jp": "サーバーの説明文 (MOTD)",
+    "desc": "サーバーリストに表示されるメッセージです。",
+    "type": "string"
+  },
+  "gamemode": {
+    "jp": "ゲームモード",
+    "desc": "デフォルトのゲームモードを選択します。",
+    "type": "enum",
+    "options": [
+      "survival",
+      "creative",
+      "adventure",
+      "spectator"
+    ]
+  },
+  "difficulty": {
+    "jp": "難易度",
+    "desc": "ゲームの難易度を選択します。",
+    "type": "enum",
+    "options": [
+      "peaceful",
+      "easy",
+      "normal",
+      "hard"
+    ]
+  },
+  "pvp": {
+    "jp": "プレイヤー対プレイヤー (PvP)",
+    "desc": "プレイヤー同士の戦闘を許可するかどうか。",
+    "type": "boolean"
+  },
+  "hardcore": {
+    "jp": "ハードコアモード",
+    "desc": "有効にすると、死亡時に観戦モードになります。",
+    "type": "boolean"
+  },
+  "max-players": {
+    "jp": "最大プレイヤー数",
+    "desc": "サーバーに参加できる最大人数。",
+    "type": "integer"
+  },
+  "level-name": {
+    "jp": "ワールド名",
+    "desc": "ワールドデータが保存されるフォルダ名。",
+    "type": "string"
+  },
+  "level-seed": {
+    "jp": "ワールドのシード値",
+    "desc": "ワールド生成に使用するシード値。空欄でランダム。",
+    "type": "string"
+  },
+  "generate-structures": {
+    "jp": "建造物の生成",
+    "desc": "村、ダンジョンなどの建造物を生成するかどうか。",
+    "type": "boolean"
+  },
+  "allow-nether": {
+    "jp": "ネザー",
+    "desc": "ネザーへの移動を許可するかどうか。",
+    "type": "boolean"
+  },
+  "spawn-animals": {
+    "jp": "動物のスポーン",
+    "desc": "動物が自然にスポーンするかどうか。",
+    "type": "boolean"
+  },
+  "spawn-monsters": {
+    "jp": "モンスターのスポーン",
+    "desc": "モンスターが自然にスポーンするかどうか。",
+    "type": "boolean"
+  },
+  "spawn-npcs": {
+    "jp": "村人のスポーン",
+    "desc": "村人が自然にスポーンするかどうか。",
+    "type": "boolean"
+  },
+  "allow-flight": {
+    "jp": "飛行の許可",
+    "desc": "サバイバルモードでの飛行を許可します (MOD等が必要)。",
+    "type": "boolean"
+  },
+  "view-distance": {
+    "jp": "描画距離",
+    "desc": "サーバーがクライアントに送信するワールドのチャンク単位の描画距離。",
+    "type": "integer"
+  },
+  "simulation-distance": {
+    "jp": "シミュレーション距離",
+    "desc": "エンティティの更新や作物の成長などが起こるチャンク単位の距離。",
+    "type": "integer"
+  },
+  "online-mode": {
+    "jp": "オンラインモード",
+    "desc": "正規のMinecraftアカウントのみが接続できるようにするかどうか。",
+    "type": "boolean"
+  },
+  "white-list": {
+    "jp": "ホワイトリスト",
+    "desc": "有効にすると、ホワイトリストに登録されたプレイヤーのみが参加できます。",
+    "type": "boolean"
+  },
+  "enable-command-block": {
+    "jp": "コマンドブロック",
+    "desc": "コマンドブロックの使用を許可するかどうか。",
+    "type": "boolean"
+  },
+  "spawn-protection": {
+    "jp": "スポーン地点の保護範囲",
+    "desc": "OP以外のプレイヤーがスポーン地点周辺を編集できないようにする範囲の半径。",
+    "type": "integer"
+  },
+  "server-port": {
+    "jp": "サーバーポート",
+    "desc": "サーバーが使用するポート番号。",
+    "type": "integer"
+  },
+  "enable-jmx-monitoring": {
+    "jp": "JMX監視",
+    "desc": "JMX (Java Management Extensions) による監視を有効にするか。",
+    "type": "boolean"
+  },
+  "rcon.port": {
+    "jp": "RCON ポート",
+    "desc": "RCON (リモートコンソール) が使用するポート番号。",
+    "type": "integer"
+  },
+  "enable-query": {
+    "jp": "Queryプロトコル",
+    "desc": "GameSpy4プロトコルによるサーバー情報の取得を許可するか。",
+    "type": "boolean"
+  },
+  "generator-settings": {
+    "jp": "ワールド生成設定",
+    "desc": "スーパーフラットなどのワールド生成をカスタマイズするためのJSON文字列。",
+    "type": "string"
+  },
+  "enforce-secure-profile": {
+    "jp": "セキュアプロファイルの強制",
+    "desc": "Mojangの署名付き公開鍵を持たないプレイヤーの接続を拒否するか。",
+    "type": "boolean"
+  },
+  "query.port": {
+    "jp": "Query ポート",
+    "desc": "Queryプロトコルが使用するポート番号。",
+    "type": "integer"
+  },
+  "max-chained-neighbor-updates": {
+    "jp": "隣接ブロックの連鎖更新上限",
+    "desc": "1tickに処理する隣接ブロックの連鎖的な更新の最大数。-1で無制限。",
+    "type": "integer"
+  },
+  "network-compression-threshold": {
+    "jp": "ネットワーク圧縮しきい値",
+    "desc": "指定したバイト数以上のパケットを圧縮します。-1で無効。",
+    "type": "integer"
+  },
+  "max-tick-time": {
+    "jp": "最大ティック時間",
+    "desc": "1tickあたりの最大許容時間(ミリ秒)。これを超えるとサーバーがクラッシュします。-1で無効。",
+    "type": "integer"
+  },
+  "require-resource-pack": {
+    "jp": "リソースパックの強制",
+    "desc": "サーバーリソースパックの利用をクライアントに強制するか。",
+    "type": "boolean"
+  },
+  "use-native-transport": {
+    "jp": "ネイティブトランスポートの使用",
+    "desc": "Linux環境で通信パフォーマンスを向上させるためのオプション。",
+    "type": "boolean"
+  },
+  "enable-status": {
+    "jp": "ステータス表示",
+    "desc": "サーバーリストにサーバーのステータス(オンライン/オフライン)を表示するか。",
+    "type": "boolean"
+  },
+  "initial-disabled-packs": {
+    "jp": "初期無効データパック",
+    "desc": "ワールド作成時にデフォルトで無効にするデータパックをカンマ区切りで指定。",
+    "type": "string"
+  },
+  "broadcast-rcon-to-ops": {
+    "jp": "RCONコマンドのOPへの通知",
+    "desc": "RCONから実行されたコマンドをOP権限を持つプレイヤーのチャットに表示するか。",
+    "type": "boolean"
+  },
+  "server-ip": {
+    "jp": "サーバーIPアドレス",
+    "desc": "サーバーを特定のIPアドレスに割り当てる場合に指定。通常は空欄。",
+    "type": "string"
+  },
+  "resource-pack-prompt": {
+    "jp": "リソースパックのプロンプト",
+    "desc": "リソースパック適用時に表示するメッセージ(2.40まで)。",
+    "type": "string"
+  },
+  "allow-nether": {
+    "jp": "ネザー",
+    "desc": "ネザーへの移動を許可するかどうか。",
+    "type": "boolean"
+  },
+  "enable-rcon": {
+    "jp": "RCONの有効化",
+    "desc": "RCON (リモートコンソール) を有効にするか。",
+    "type": "boolean"
+  },
+  "sync-chunk-writes": {
+    "jp": "チャンク書き込みの同期",
+    "desc": "チャンクデータの保存を同期的(安全)に行うか、非同期的(高速)に行うか。",
+    "type": "boolean"
+  },
+  "op-permission-level": {
+    "jp": "OP権限レベル",
+    "desc": "OP(管理者)の権限レベルを1～4で設定します。",
+    "type": "integer"
+  },
+  "prevent-proxy-connections": {
+    "jp": "プロキシ接続の防止",
+    "desc": "VPNやプロキシを経由した接続を拒否するか。",
+    "type": "boolean"
+  },
+  "hide-online-players": {
+    "jp": "オンラインプレイヤーの非表示",
+    "desc": "Queryレスポンスでプレイヤーリストを非表示にするか。",
+    "type": "boolean"
+  },
+  "resource-pack": {
+    "jp": "リソースパックURL",
+    "desc": "適用させたいリソースパックのダウンロードURL。",
+    "type": "string"
+  },
+  "entity-broadcast-range-percentage": {
+    "jp": "エンティティのブロードキャスト範囲",
+    "desc": "エンティティ(MOB等)をクライアントに送信する距離をデフォルトに対するパーセンテージで指定。",
+    "type": "integer"
+  },
+  "rcon.password": {
+    "jp": "RCON パスワード",
+    "desc": "RCON (リモートコンソール) に接続するためのパスワード。",
+    "type": "string"
+  },
+  "player-idle-timeout": {
+    "jp": "アイドルタイムアウト",
+    "desc": "指定した時間(分)以上操作がないプレイヤーをキックします。0で無効。",
+    "type": "integer"
+  },
+  "force-gamemode": {
+    "jp": "ゲームモードの強制",
+    "desc": "プレイヤーがサーバーに参加した際、強制的にデフォルトのゲームモードに変更するか。",
+    "type": "boolean"
+  },
+  "rate-limit": {
+    "jp": "レート制限",
+    "desc": "IPアドレスごとのパケット受信レート制限(ミリ秒)。0で無効。",
+    "type": "integer"
+  },
+  "broadcast-console-to-ops": {
+    "jp": "コンソールログのOPへの通知",
+    "desc": "サーバーコンソールへのログ出力をOP権限を持つプレイヤーのチャットに表示するか。",
+    "type": "boolean"
+  },
+  "log-ips": {
+    "jp": "IPアドレスのログ記録",
+    "desc": "プレイヤーのIPアドレスをログに記録するかどうか。",
+    "type": "boolean"
+  },
+  "function-permission-level": {
+    "jp": "関数権限レベル",
+    "desc": "関数(/function)の実行に必要な権限レベルを1～4で設定します。",
+    "type": "integer"
+  },
+  "initial-enabled-packs": {
+    "jp": "初期有効データパック",
+    "desc": "ワールド作成時にデフォルトで有効にするデータパックをカンマ区切りで指定。",
+    "type": "string"
+  },
+  "level-type": {
+    "jp": "ワールドタイプ",
+    "desc": "生成するワールドのタイプを選択します。",
+    "type": "enum",
+    "options": [
+      "minecraft:normal",
+      "minecraft:flat",
+      "minecraft:large_biomes",
+      "minecraft:amplified",
+      "minecraft:single_biome"
+    ]
+  },
+  "text-filtering-config": {
+    "jp": "テキストフィルタリング設定",
+    "desc": "チャットフィルタリングの設定ファイルへのパス。",
+    "type": "string"
+  },
+  "enforce-whitelist": {
+    "jp": "ホワイトリストの強制",
+    "desc": "ホワイトリストに載っていないプレイヤーをキックするか。",
+    "type": "boolean"
+  },
+  "resource-pack-sha1": {
+    "jp": "リソースパックSHA1ハッシュ",
+    "desc": "リソースパックのSHA1ハッシュ値。整合性チェックに使用。",
+    "type": "string"
+  },
+  "max-world-size": {
+    "jp": "最大ワールドサイズ",
+    "desc": "ワールドの最大半径(ブロック数)。",
+    "type": "integer"
+  }
+}
