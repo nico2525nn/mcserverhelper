@@ -125,26 +125,34 @@ def start_server(cfg, xmx="1024M", xms="1024M"):
         }.get(choice, "default")
         print(f"選択されたワールドタイプ: {level_type}")
         # server.properties ファイルを作成
-        with open(os.path.join(world_dir, "server.properties"), 'w', encoding='utf-8') as f:
+        with open("server.properties", 'w', encoding='utf-8') as f:
             f.write(f"level-type={level_type}\n")
 
     cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-jar", jar, "nogui"]
-    server_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    server_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True, cwd=script_dir)
     print(f"サーバーを起動しました (PID: {server_proc.pid})")
-
 
 def stop_server():
     global server_proc
     if server_proc and server_proc.poll() is None:
+        print("サーバーに 'stop' コマンドを送信し、正常なシャットダウンを試みます...")
         try:
+            server_proc.stdin.write("stop\n")
+            server_proc.stdin.flush()
+            # サーバーが正常に終了するのを最大60秒間待ちます
+            server_proc.wait(timeout=60)
+            print("サーバーは正常に停止しました。")
+        except subprocess.TimeoutExpired:
+            print("シャットダウンがタイムアウトしました。プロセスを強制終了します。")
             if platform.system() == 'Windows':
                 subprocess.check_call(["taskkill", "/PID", str(server_proc.pid), "/F"])
             else:
                 server_proc.terminate()
             server_proc.wait()
-            print("サーバーを停止しました。")
+            print("サーバーを強制的に停止しました。")
         except Exception as e:
-            print(f"停止中にエラー: {e}")
+            print(f"サーバー停止中にエラーが発生しました: {e}")
     else:
         print("サーバーは起動していません。")
     server_proc = None
@@ -163,7 +171,6 @@ def send_command():
     except Exception as e:
         print(f"コマンド送信エラー: {e}")
 
-
 def backup_world(cfg):
     world = cfg['world_dir']
     bakdir = cfg['backup_dir']
@@ -178,7 +185,6 @@ def backup_world(cfg):
                 z.write(full, arcname=rel)
     print(f"バックアップを作成しました: {zip_name}")
 
-
 def list_backups(cfg):
     bakdir = cfg['backup_dir']
     ensure_dir(bakdir)
@@ -188,7 +194,6 @@ def list_backups(cfg):
         return
     for idx, name in enumerate(backups, 1):
         print(f"[{idx}] {name}")
-
 
 def restore_backup(cfg):
     world = cfg['world_dir']
@@ -209,14 +214,103 @@ def restore_backup(cfg):
         z.extractall(world)
     print("復元完了。")
 
-
 def configure(cfg):
-    print("---- 設定 ----")
+    print("---- ヘルパー設定 ----")
     for key, val in cfg.items():
         new = input(f"{key} [{val}]: ")
         if new.strip():
             cfg[key] = new.strip()
     save_config(cfg)
+
+def configure_server_properties(cfg):
+    """
+    server.propertiesの内容を対話的に設定する（一覧選択方式）
+    """
+    PROPERTIES_FILE = "server.properties"
+    DEFINITIONS_FILE = "server_properties_jp.json"
+
+    # 1. 定義ファイルと既存プロパティを読み込む
+    if not os.path.exists(DEFINITIONS_FILE):
+        print(f"エラー: 定義ファイル '{DEFINITIONS_FILE}' が見つかりません。")
+        return
+    try:
+        with open(DEFINITIONS_FILE, 'r', encoding='utf-8') as f:
+            definitions = json.load(f)
+    except json.JSONDecodeError:
+        print(f"エラー: '{DEFINITIONS_FILE}' の形式が正しくありません。")
+        return
+
+    props = {}
+    if os.path.exists(PROPERTIES_FILE):
+        with open(PROPERTIES_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                if '=' in line and not line.strip().startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    props[key.strip()] = value.strip()
+
+    definitions_list = list(definitions.items())
+
+    while True:
+        # 2. プロパティ一覧を表示
+        print("\n--- サーバープロパティ設定 ---")
+        for i, (key, definition) in enumerate(definitions_list):
+            jp_name = definition.get("jp", key)
+            current_value = props.get(key, "")
+            print(f"[{i+1:02d}] {jp_name:<25} ({key:<30}) = {current_value}")
+
+        # 3. メニュー表示と入力
+        print("\n[S] 保存して戻る  [Q] 保存せずに戻る")
+        choice = input("変更したい項目の番号を入力してください >> ").strip().lower()
+
+        # 4. 入力に応じた処理
+        if choice == 's':
+            try:
+                with open(PROPERTIES_FILE, 'w', encoding='utf-8') as f:
+                    f.write("# Minecraft server properties\n")
+                    f.write(f"# Written by mcserverhelper on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    # 元の順序を維持するためにdefinitions_listを基準に書き込む
+                    for key, _ in definitions_list:
+                        if key in props:
+                            f.write(f"{key}={props[key]}\n")
+                print(f"\n設定を '{PROPERTIES_FILE}' に保存しました。")
+            except Exception as e:
+                print(f"\nエラー: '{PROPERTIES_FILE}' の保存に失敗しました: {e}")
+            break
+        
+        elif choice == 'q':
+            print("変更を保存せずに戻ります。")
+            break
+
+        elif choice.isdigit():
+            try:
+                choice_index = int(choice) - 1
+                if 0 <= choice_index < len(definitions_list):
+                    key, definition = definitions_list[choice_index]
+                    
+                    jp_name = definition.get("jp", key)
+                    desc = definition.get("desc", "")
+                    current_value = props.get(key, "")
+                    
+                    print(f"\n--- {jp_name} の編集 ---")
+                    print(f"   説明: {desc}")
+                    options = definition.get("options")
+                    if options:
+                        print(f"   選択肢: {', '.join(options)}")
+                    
+                    prompt = f"   新しい値を入力してください (現在値: {current_value}) >> "
+                    new_value = input(prompt).strip()
+
+                    if new_value:
+                        props[key] = new_value
+                        print(f"'{key}' を '{new_value}' に設定しました。(保存するにはSを選択してください)")
+                    else:
+                        print("値が入力されなかったため、変更はキャンセルされました。")
+                else:
+                    print("エラー: リストにない番号です。")
+            except ValueError:
+                print("エラー: 無効な入力です。")
+        else:
+            print("エラー: 無効な入力です。リストの番号、'S'、または 'Q' を入力してください。")
 
 
 def log_reader(process):
@@ -228,7 +322,6 @@ def log_reader(process):
             print(line.strip())
     except Exception as e:
         print(f"ログ読み取り中にエラーが発生しました: {e}")
-
 
 def setup_and_run_ownserver():
     """
@@ -277,7 +370,6 @@ def setup_and_run_ownserver():
     except Exception as e:
         print(f"Ownserverの起動中にエラーが発生しました: {e}")
 
-
 def stop_ownserver():
     """
     Ownserverを停止する。
@@ -294,7 +386,6 @@ def stop_ownserver():
         print("Ownserverは起動していません。")
     ownserver_proc = None
 
-
 def main_menu():
     if not os.path.exists(CONFIG_FILE):
         cfg = initial_setup()
@@ -302,16 +393,17 @@ def main_menu():
         cfg = load_config()
 
     while True:
-        print("==== Minecraft Server Helper ====")
+        print("\n==== Minecraft Server Helper ====")
         print("[1] サーバー起動")
         print("[2] サーバー停止")
         print("[3] サーバーにコマンド送信")
-        print("[4] バックアップ作成")
-        print("[5] バックアップ一覧")
-        print("[6] バックアップ復元")
-        print("[7] 設定変更")
-        print("[8] Ownserverを起動")
-        print("[9] Ownserverを停止")
+        print("[4] サーバープロパティ設定")
+        print("[5] バックアップ作成")
+        print("[6] バックアップ一覧")
+        print("[7] バックアップ復元")
+        print("[8] ヘルパー設定変更")
+        print("[9] Ownserverを起動")
+        print("[10] Ownserverを停止")
         print("[0] 終了")
         choice = input(">> ")
         if choice == '1':
@@ -321,16 +413,18 @@ def main_menu():
         elif choice == '3':
             send_command()
         elif choice == '4':
-            backup_world(cfg)
+            configure_server_properties(cfg)
         elif choice == '5':
-            list_backups(cfg)
+            backup_world(cfg)
         elif choice == '6':
-            restore_backup(cfg)
+            list_backups(cfg)
         elif choice == '7':
-            configure(cfg)
+            restore_backup(cfg)
         elif choice == '8':
-            setup_and_run_ownserver()
+            configure(cfg)
         elif choice == '9':
+            setup_and_run_ownserver()
+        elif choice == '10':
             stop_ownserver()
         elif choice == '0':
             stop_server()
