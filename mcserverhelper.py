@@ -12,14 +12,16 @@ import threading
 
 # ==== Config loading (.env or config.json) ====
 # 設定ファイル: 実行ディレクトリ内の 'mcserve_helper_config.json'
-# ワールドデータ: 'world/'
-# バックアップ: 'backups/' 内
-# EULA 同意ファイル: 'eula.txt'
+# サーバーデータ: 'server_data/' (デフォルト)
+#   - ワールドデータ: 'world/'
+#   - バックアップ: 'backups/' 内
+#   - EULA 同意ファイル: 'eula.txt'
 # PID ファイル: '.mcserve_helper.pid'
 CONFIG_FILE = "mcserve_helper_config.json"
 DEFAULT_CONFIG = {
     "java_cmd": "java",
     "jar_path": "",
+    "server_data_dir": "server_data", # サーバー関連ファイルのルートディレクトリ
     "world_dir": "world",
     "backup_dir": "backups",
     "ops_file": "ops.json",
@@ -29,8 +31,9 @@ DEFAULT_CONFIG = {
 }
 
 # グローバルプロセスオブジェクト
-server_proc = None
-ownserver_proc = None
+# これらはapp.pyから直接管理される
+server_proc = None # Minecraft server process
+ownserver_proc = None # Ownserver for MC process
 
 
 def load_config():
@@ -40,7 +43,7 @@ def load_config():
                 cfg = json.load(f)
                 return {**DEFAULT_CONFIG, **cfg}
             except json.JSONDecodeError:
-                print("設定ファイルを読み込めませんでした。初期設定を行います。")
+                print("設定ファイルを読み込めませんでした。")
     return DEFAULT_CONFIG.copy()
 
 
@@ -48,23 +51,7 @@ def save_config(cfg):
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
     print(f"設定を '{CONFIG_FILE}' に保存しました。")
-
-
-def initial_setup():
-    print("--- 初回設定 ---")
-    cfg = DEFAULT_CONFIG.copy()
-    while True:
-        jar = input("サーバーのJARファイルのパスを入力してください (例: server.jar): ")
-        if jar and os.path.exists(jar):
-            cfg['jar_path'] = jar
-            break
-        else:
-            print("指定されたファイルが見つかりません。もう一度入力してください。")
-    java = input(f"Java 実行コマンドを指定 (デフォルト: {cfg['java_cmd']}): ")
-    if java.strip():
-        cfg['java_cmd'] = java.strip()
-    save_config(cfg)
-    return cfg
+    return True
 
 
 def ensure_dir(path):
@@ -73,7 +60,9 @@ def ensure_dir(path):
 
 
 def ensure_eula(cfg):
-    eula_path = cfg.get('eula_file', 'eula.txt')
+    server_data_dir = cfg.get('server_data_dir', '.')
+    eula_path = os.path.join(server_data_dir, cfg.get('eula_file', 'eula.txt'))
+    ensure_dir(os.path.dirname(eula_path))
     try:
         with open(eula_path, 'w', encoding='utf-8') as f:
             f.write('# By changing the setting below to TRUE you are indicating your agreement to the EULA\n')
@@ -83,68 +72,77 @@ def ensure_eula(cfg):
         print(f"EULA 同意ファイルの作成に失敗しました: {e}")
 
 
-def start_server(cfg, xmx="1024M", xms="1024M"):
+def start_server(cfg, xmx="1024M", xms="1024M", world_type="default"):
+    """
+    Minecraftサーバーを起動する。
+    成功した場合はsubprocess.Popenオブジェクトを、失敗した場合はNoneを返す。
+    """
     global server_proc
+
+    server_data_dir = cfg.get('server_data_dir', '.')
+    ensure_dir(server_data_dir)
+    
     ensure_eula(cfg)
-    jar = cfg['jar_path']
-    if not os.path.exists(jar):
-        print(f"Error: JARファイル '{jar}' が見つかりません。設定を確認してください。")
-        return
+
+    # jar_pathが相対パスの場合、スクリプトの場所からの相対パスとして解決し、絶対パスに変換
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    jar_abs_path = os.path.join(script_dir, cfg['jar_path']) if not os.path.isabs(cfg['jar_path']) else cfg['jar_path']
+    
+    if not os.path.exists(jar_abs_path):
+        print(f"Error: JARファイル '{jar_abs_path}' が見つかりません。設定を確認してください。")
+        return None
     if server_proc and server_proc.poll() is None:
         print("サーバーは既に起動しています。")
-        return
+        return server_proc
 
-    # メモリサイズをGB単位で指定
-    try:
-        max_memory_gb = int(input("最大メモリサイズをGB単位で指定してください (例: 2): "))
-        min_memory_gb = int(input("最小メモリサイズをGB単位で指定してください (例: 1): "))
-        xmx = f"{max_memory_gb * 1024}M"
-        xms = f"{min_memory_gb * 1024}M"
-    except ValueError:
-        print("無効な入力です。デフォルト値を使用します。")
-
-    # 新しいワールドの場合、ワールドタイプを選択
-    world_dir = cfg['world_dir']
+    # 新しいワールドの場合、ワールドタイプを設定
+    world_dir = os.path.join(server_data_dir, cfg['world_dir'])
     if not os.path.exists(world_dir) or not os.listdir(world_dir):
-        ensure_dir(world_dir)  # ワールドディレクトリを作成
-        print("新しいワールドを作成します。ワールドタイプを選択してください:")
-        print("[1] デフォルト")
-        print("[2] スーパーフラット")
-        print("[3] アンプリファイド")
-        print("[4] 大きなバイオーム")
-        print("[5] シングルバイオーム")
-        print("[6] デバッグモード")
-        choice = input(">> ")
-        level_type = {
-            '1': "default",
-            '2': "flat",
-            '3': "amplified",
-            '4': "largeBiomes",
-            '5': "singleBiome",
-            '6': "debug_all_block_states"
-        }.get(choice, "default")
-        print(f"選択されたワールドタイプ: {level_type}")
-        # server.properties ファイルを作成
-        with open("server.properties", 'w', encoding='utf-8') as f:
-            f.write(f"level-type={level_type}\n")
+        ensure_dir(world_dir)
+        print(f"新しいワールドを作成します。ワールドタイプ: {world_type}")
+        # server.properties ファイルを作成または更新
+        props_path = os.path.join(server_data_dir, "server.properties")
+        props = {}
+        if os.path.exists(props_path):
+            with open(props_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if '=' in line and not line.strip().startswith('#'):
+                        key, value = line.strip().split('=', 1)
+                        props[key.strip()] = value.strip()
+        props['level-type'] = world_type
+        with open(props_path, 'w', encoding='utf-8') as f:
+            for key, value in props.items():
+                f.write(f"{key}={value}\n")
 
-    cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-jar", jar, "nogui"]
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    server_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True, cwd=script_dir)
-    print(f"サーバーを起動しました (PID: {server_proc.pid})")
+    cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-jar", jar_abs_path, "nogui"]
+    
+    # stdoutとstderrをキャプチャするためにPIPEを使用
+    proc = subprocess.Popen(
+        cmd, 
+        stdin=subprocess.PIPE, 
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True, 
+        cwd=server_data_dir, # サーバーの作業ディレクトリを変更
+        encoding='utf-8',
+        errors='replace'
+    )
+    print(f"サーバーを起動しました (PID: {proc.pid})")
+    server_proc = proc
+    return proc
 
 def stop_server():
+    """サーバーを停止する。"""
     global server_proc
     if server_proc and server_proc.poll() is None:
         print("サーバーに 'stop' コマンドを送信し、正常なシャットダウンを試みます...")
         try:
             server_proc.stdin.write("stop\n")
             server_proc.stdin.flush()
-            # サーバーが正常に終了するのを最大60秒間待ちます
             server_proc.wait(timeout=60)
             print("サーバーは正常に停止しました。")
-        except subprocess.TimeoutExpired:
-            print("シャットダウンがタイムアウトしました。プロセスを強制終了します。")
+        except (subprocess.TimeoutExpired, BrokenPipeError):
+            print("シャットダウンがタイムアウトしたか、パイプが壊れました。プロセスを強制終了します。")
             if platform.system() == 'Windows':
                 subprocess.check_call(["taskkill", "/PID", str(server_proc.pid), "/F"])
             else:
@@ -153,190 +151,119 @@ def stop_server():
             print("サーバーを強制的に停止しました。")
         except Exception as e:
             print(f"サーバー停止中にエラーが発生しました: {e}")
+        finally:
+            server_proc = None
+            return True
     else:
         print("サーバーは起動していません。")
-    server_proc = None
+        server_proc = None
+        return False
 
 
-def send_command():
+def send_command(cmd):
+    """サーバーにコマンドを送信する。"""
     global server_proc
     if not server_proc or server_proc.poll() is not None:
         print("サーバーが起動していないか、既に停止しています。")
-        return
-    cmd = input("サーバーコマンドを入力: ")
+        return False
     try:
         server_proc.stdin.write(cmd + "\n")
         server_proc.stdin.flush()
         print(f"コマンド送信: {cmd}")
-    except Exception as e:
+        return True
+    except (BrokenPipeError, ValueError, OSError) as e:
         print(f"コマンド送信エラー: {e}")
+        return False
 
 def backup_world(cfg):
-    world = cfg['world_dir']
-    bakdir = cfg['backup_dir']
+    """ワールドのバックアップを作成する。成功した場合はzipファイル名を返す。"""
+    server_data_dir = cfg.get('server_data_dir', '.')
+    world = os.path.join(server_data_dir, cfg['world_dir'])
+    bakdir = os.path.join(server_data_dir, cfg['backup_dir'])
     ensure_dir(bakdir)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     zip_name = os.path.join(bakdir, f"world_backup_{timestamp}.zip")
-    with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as z:
-        for root, dirs, files in os.walk(world):
-            for file in files:
-                full = os.path.join(root, file)
-                rel = os.path.relpath(full, world)
-                z.write(full, arcname=rel)
-    print(f"バックアップを作成しました: {zip_name}")
+    try:
+        with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as z:
+            for root, dirs, files in os.walk(world):
+                for file in files:
+                    full = os.path.join(root, file)
+                    rel = os.path.relpath(full, world)
+                    z.write(full, arcname=rel)
+        print(f"バックアップを作成しました: {zip_name}")
+        return zip_name
+    except Exception as e:
+        print(f"バックアップ作成中にエラー: {e}")
+        return None
 
 def list_backups(cfg):
-    bakdir = cfg['backup_dir']
+    """バックアップのリストを返す。"""
+    server_data_dir = cfg.get('server_data_dir', '.')
+    bakdir = os.path.join(server_data_dir, cfg['backup_dir'])
     ensure_dir(bakdir)
-    backups = sorted(os.listdir(bakdir))
-    if not backups:
-        print("バックアップは存在しません。")
-        return
-    for idx, name in enumerate(backups, 1):
-        print(f"[{idx}] {name}")
+    if not os.path.exists(bakdir) or not os.path.isdir(bakdir):
+        return []
+    backups = sorted(os.listdir(bakdir), reverse=True)
+    return backups
 
-def restore_backup(cfg):
-    world = cfg['world_dir']
-    bakdir = cfg['backup_dir']
-    list_backups(cfg)
-    try:
-        choice = int(input("復元するバックアップ番号: ")) - 1
-        backup_file = sorted(os.listdir(bakdir))[choice]
-    except Exception:
-        print("無効な選択です。")
-        return
+def restore_backup(cfg, backup_file):
+    """指定されたバックアップファイルを復元する。"""
+    server_data_dir = cfg.get('server_data_dir', '.')
+    world = os.path.join(server_data_dir, cfg['world_dir'])
+    bakdir = os.path.join(server_data_dir, cfg['backup_dir'])
     zip_path = os.path.join(bakdir, backup_file)
-    if os.path.isdir(world):
-        print("既存のワールドフォルダを削除中...")
-        shutil.rmtree(world)
-    print(f"{backup_file} を復元しています...")
-    with zipfile.ZipFile(zip_path, 'r') as z:
-        z.extractall(world)
-    print("復元完了。")
 
-def configure(cfg):
-    print("---- ヘルパー設定 ----")
-    for key, val in cfg.items():
-        new = input(f"{key} [{val}]: ")
-        if new.strip():
-            cfg[key] = new.strip()
-    save_config(cfg)
+    if not os.path.exists(zip_path):
+        msg = f"バックアップファイル '{backup_file}' が見つかりません。"
+        print(msg)
+        return False, msg
 
-def configure_server_properties(cfg):
-    """
-    server.propertiesの内容を対話的に設定する（一覧選択方式）
-    """
-    PROPERTIES_FILE = "server.properties"
-    DEFINITIONS_FILE = "server_properties_jp.json"
+    if server_proc and server_proc.poll() is None:
+        msg = "サーバーが起動中です。復元前にサーバーを停止してください。"
+        print(msg)
+        return False, msg
 
-    # 1. 定義ファイルと既存プロパティを読み込む
-    if not os.path.exists(DEFINITIONS_FILE):
-        print(f"エラー: 定義ファイル '{DEFINITIONS_FILE}' が見つかりません。")
-        return
     try:
-        with open(DEFINITIONS_FILE, 'r', encoding='utf-8') as f:
-            definitions = json.load(f)
-    except json.JSONDecodeError:
-        print(f"エラー: '{DEFINITIONS_FILE}' の形式が正しくありません。")
-        return
-
-    props = {}
-    if os.path.exists(PROPERTIES_FILE):
-        with open(PROPERTIES_FILE, 'r', encoding='utf-8') as f:
-            for line in f:
-                if '=' in line and not line.strip().startswith('#'):
-                    key, value = line.strip().split('=', 1)
-                    props[key.strip()] = value.strip()
-
-    definitions_list = list(definitions.items())
-
-    while True:
-        # 2. プロパティ一覧を表示
-        print("\n--- サーバープロパティ設定 ---")
-        for i, (key, definition) in enumerate(definitions_list):
-            jp_name = definition.get("jp", key)
-            current_value = props.get(key, "")
-            print(f"[{i+1:02d}] {jp_name:<25} ({key:<30}) = {current_value}")
-
-        # 3. メニュー表示と入力
-        print("\n[S] 保存して戻る  [Q] 保存せずに戻る")
-        choice = input("変更したい項目の番号を入力してください >> ").strip().lower()
-
-        # 4. 入力に応じた処理
-        if choice == 's':
-            try:
-                with open(PROPERTIES_FILE, 'w', encoding='utf-8') as f:
-                    f.write("# Minecraft server properties\n")
-                    f.write(f"# Written by mcserverhelper on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    # 元の順序を維持するためにdefinitions_listを基準に書き込む
-                    for key, _ in definitions_list:
-                        if key in props:
-                            f.write(f"{key}={props[key]}\n")
-                print(f"\n設定を '{PROPERTIES_FILE}' に保存しました。")
-            except Exception as e:
-                print(f"\nエラー: '{PROPERTIES_FILE}' の保存に失敗しました: {e}")
-            break
-        
-        elif choice == 'q':
-            print("変更を保存せずに戻ります。")
-            break
-
-        elif choice.isdigit():
-            try:
-                choice_index = int(choice) - 1
-                if 0 <= choice_index < len(definitions_list):
-                    key, definition = definitions_list[choice_index]
-                    
-                    jp_name = definition.get("jp", key)
-                    desc = definition.get("desc", "")
-                    current_value = props.get(key, "")
-                    
-                    print(f"\n--- {jp_name} の編集 ---")
-                    print(f"   説明: {desc}")
-                    options = definition.get("options")
-                    if options:
-                        print(f"   選択肢: {', '.join(options)}")
-                    
-                    prompt = f"   新しい値を入力してください (現在値: {current_value}) >> "
-                    new_value = input(prompt).strip()
-
-                    if new_value:
-                        props[key] = new_value
-                        print(f"'{key}' を '{new_value}' に設定しました。(保存するにはSを選択してください)")
-                    else:
-                        print("値が入力されなかったため、変更はキャンセルされました。")
-                else:
-                    print("エラー: リストにない番号です。")
-            except ValueError:
-                print("エラー: 無効な入力です。")
-        else:
-            print("エラー: 無効な入力です。リストの番号、'S'、または 'Q' を入力してください。")
+        if os.path.isdir(world):
+            print("既存のワールドフォルダを削除中...")
+            shutil.rmtree(world)
+        print(f"'{backup_file}' を復元しています...")
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            z.extractall(world)
+        msg = "復元完了。"
+        print(msg)
+        return True, msg
+    except Exception as e:
+        msg = f"復元中にエラーが発生しました: {e}"
+        print(msg)
+        return False, msg
 
 
-def log_reader(process):
+def log_reader(process, callback):
     """
-    Ownserverのログを非同期で読み取る。
+    プロセスの出力を非同期で読み取り、コールバック関数に渡す。
     """
     try:
-        for line in process.stdout:
-            print(line.strip())
+        for line in iter(process.stdout.readline, ''):
+            callback(line.strip())
     except Exception as e:
         print(f"ログ読み取り中にエラーが発生しました: {e}")
+    finally:
+        process.stdout.close()
 
-def setup_and_run_ownserver():
+
+def setup_and_run_ownserver(port=25565, log_callback=None):
     """
-    Ownserverのバイナリをダウンロードして解凍し、非ブロッキングで起動する。
+    Ownserverを起動する。
+    成功した場合はsubprocess.Popenオブジェクトを、失敗した場合はNoneを返す。
     """
     global ownserver_proc
-    # バイナリのダウンロードURL
     binary_url = "https://github.com/Kumassy/ownserver/releases/download/v0.7.0/ownserver_v0.7.0_x86_64-pc-windows-gnu.zip"
     binary_dir = "ownserver_bin"
     binary_path = os.path.join(binary_dir, "ownserver.exe")
 
-    # バイナリディレクトリを作成
     ensure_dir(binary_dir)
 
-    # バイナリをダウンロード
     if not os.path.exists(binary_path):
         print("Ownserverのバイナリをダウンロードしています...")
         zip_path = os.path.join(binary_dir, "ownserver.zip")
@@ -349,91 +276,111 @@ def setup_and_run_ownserver():
             print("解凍完了。")
         except Exception as e:
             print(f"バイナリのダウンロードまたは解凍中にエラーが発生しました: {e}")
-            return
-    else:
-        print("既にバイナリが存在します。")
+            if log_callback:
+                log_callback(f"ERROR: バイナリのダウンロードまたは解凍中にエラーが発生しました: {e}")
+            return None
 
-    # Ownserverを非ブロッキングで起動
-    print("Ownserverを起動します...")
+    print(f"Ownserverをポート {port}/tcp で起動します...")
     try:
-        ownserver_proc = subprocess.Popen(
-            [binary_path, "--endpoint", "25565/tcp"],
+        proc = subprocess.Popen(
+            [binary_path, "--endpoint", f"{port}/tcp"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stderr=subprocess.STDOUT, # エラー出力を標準出力にマージ
+            text=True,
+            encoding='utf-8',
+            errors='replace'
         )
-        print(f"Ownserverがバックグラウンドで起動しました (PID: {ownserver_proc.pid})。")
-        print("公開されたIPを確認するには以下のログを参照してください:")
+        print(f"Ownserverがバックグラウンドで起動しました (PID: {proc.pid})。")
+        
+        if log_callback:
+            threading.Thread(target=log_reader, args=(proc, log_callback), daemon=True).start()
 
-        # ログを非同期で読み取るスレッドを開始
-        threading.Thread(target=log_reader, args=(ownserver_proc,), daemon=True).start()
+        ownserver_proc = proc
+        return proc
     except Exception as e:
         print(f"Ownserverの起動中にエラーが発生しました: {e}")
+        if log_callback:
+            log_callback(f"ERROR: Ownserverの起動中にエラーが発生しました: {e}")
+        return None
 
 def stop_ownserver():
-    """
-    Ownserverを停止する。
-    """
+    """Ownserverを停止する。"""
     global ownserver_proc
     if ownserver_proc and ownserver_proc.poll() is None:
         try:
             ownserver_proc.terminate()
-            ownserver_proc.wait()
+            ownserver_proc.wait(timeout=5)
             print("Ownserverを停止しました。")
+        except subprocess.TimeoutExpired:
+            print("Ownserverの停止がタイムアウトしました。強制終了します。")
+            ownserver_proc.kill()
+            ownserver_proc.wait()
         except Exception as e:
             print(f"Ownserverの停止中にエラーが発生しました: {e}")
+        finally:
+            ownserver_proc = None
+            return True
     else:
         print("Ownserverは起動していません。")
-    ownserver_proc = None
+        ownserver_proc = None
+        return False
 
-def main_menu():
-    if not os.path.exists(CONFIG_FILE):
-        cfg = initial_setup()
-    else:
-        cfg = load_config()
+def get_properties(cfg):
+    """server.propertiesの内容を辞書として読み込む。"""
+    server_data_dir = cfg.get('server_data_dir', '.')
+    props_path = os.path.join(server_data_dir, "server.properties")
+    props = {}
+    if not os.path.exists(props_path):
+        return props
+        
+    try:
+        with open(props_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        props[key.strip()] = value.strip()
+    except Exception as e:
+        print(f"Error reading server properties file '{props_path}': {e}")
+        # In case of error, return an empty dict to avoid crashing the API
+        return {}
+    return props
 
-    while True:
-        print("\n==== Minecraft Server Helper ====")
-        print("[1] サーバー起動")
-        print("[2] サーバー停止")
-        print("[3] サーバーにコマンド送信")
-        print("[4] サーバープロパティ設定")
-        print("[5] バックアップ作成")
-        print("[6] バックアップ一覧")
-        print("[7] バックアップ復元")
-        print("[8] ヘルパー設定変更")
-        print("[9] Ownserverを起動")
-        print("[10] Ownserverを停止")
-        print("[0] 終了")
-        choice = input(">> ")
-        if choice == '1':
-            start_server(cfg)
-        elif choice == '2':
-            stop_server()
-        elif choice == '3':
-            send_command()
-        elif choice == '4':
-            configure_server_properties(cfg)
-        elif choice == '5':
-            backup_world(cfg)
-        elif choice == '6':
-            list_backups(cfg)
-        elif choice == '7':
-            restore_backup(cfg)
-        elif choice == '8':
-            configure(cfg)
-        elif choice == '9':
-            setup_and_run_ownserver()
-        elif choice == '10':
-            stop_ownserver()
-        elif choice == '0':
-            stop_server()
-            stop_ownserver()
-            print("終了します。")
-            sys.exit(0)
-        else:
-            print("無効な入力です。番号を選択してください。")
+def save_properties(cfg, props_data):
+    """server.propertiesファイルに設定を保存する。コメントや順序は維持しようと試みる。"""
+    server_data_dir = cfg.get('server_data_dir', '.')
+    props_path = os.path.join(server_data_dir, "server.properties")
+    
+    lines = []
+    if os.path.exists(props_path):
+        with open(props_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
 
+    # props_dataにあるキーをセットとして持っておく
+    keys_to_update = set(props_data.keys())
 
-if __name__ == "__main__":
-    main_menu()
+    # 既存の行を更新
+    for i, line in enumerate(lines):
+        line_strip = line.strip()
+        if line_strip and not line_strip.startswith('#'):
+            if '=' in line_strip:
+                key, _ = line_strip.split('=', 1)
+                key = key.strip()
+                if key in props_data:
+                    lines[i] = f"{key}={props_data[key]}\n"
+                    keys_to_update.discard(key) # 更新済みのキーをセットから削除
+
+    # ファイルに存在しなかった新しいキーを追加
+    for key in keys_to_update:
+        lines.append(f"{key}={props_data[key]}\n")
+
+    try:
+        with open(props_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        print(f"サーバープロパティを '{props_path}' に保存しました。")
+        return True, "プロパティを保存しました。"
+    except Exception as e:
+        msg = f"プロパティの保存中にエラーが発生しました: {e}"
+        print(msg)
+        return False, msg
