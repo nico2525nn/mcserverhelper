@@ -3,9 +3,16 @@ import sys
 import os
 import webbrowser
 import threading
+import time
+import logging
 
 def check_and_install_dependencies():
     """必要なライブラリがインストールされているか確認し、なければインストールする"""
+    # PyInstaller でバンドルした実行ファイル実行時は pip インストール処理をスキップ
+    if getattr(sys, 'frozen', False):
+        logging.debug("Frozen executable detected: dependency installation skipped.")
+        return
+
     requirements_path = 'requirements.txt'
     if not os.path.exists(requirements_path):
         print(f"'{requirements_path}' が見つかりません。依存関係のチェックをスキップします。")
@@ -38,7 +45,71 @@ app = Flask(__name__,
             static_folder='static', 
             template_folder='templates')
 app.config['SECRET_KEY'] = os.urandom(24)
-socketio = SocketIO(app, async_mode='gevent')
+
+# --- 追加: ロギング設定（werkzeug/Flask のアクセスログを抑制） ---
+logging.basicConfig(level=logging.ERROR)
+# Flask のデフォルトロガーを無効化（不要なら True のまま)
+app.logger.disabled = True
+# werkzeug のアクセスログを抑制
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# --- 変更: 複数モードを順に試して SocketIO を初期化する（失敗時はフェイクにフォールバック） ---
+class FakeSocketIO:
+    """最低限のインターフェースを提供するフェイク SocketIO。
+    WebSocket が使えない環境（PyInstallerでのバンドル等）でのフォールバック用。
+    """
+    def __init__(self, app):
+        self.app = app
+
+    def emit(self, event, data=None, broadcast=False):
+        # 出力を抑制（ログは必要なら logging.debug に切り替え）
+        # logging.debug(f"[FakeSocketIO.emit] {event}: {data}")
+        return None
+
+    def start_background_task(self, target=None, *args, **kwargs):
+        if target is None:
+            return None
+        t = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
+        t.start()
+        return t
+
+    def sleep(self, seconds):
+        time.sleep(seconds)
+
+    def on(self, event):
+        # デコレータを返す（何もしない）
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def run(self, app, host='127.0.0.1', port=5000, use_reloader=False, log_output=False):
+        # フェイク時は通常の Flask サーバーで起動
+        app.run(host=host, port=port, use_reloader=use_reloader)
+
+def init_socketio(app):
+    """複数の async_mode 候補を順に試して SocketIO を初期化する。
+    すべて失敗した場合は FakeSocketIO を返す。
+    """
+    candidates = ['threading', 'eventlet', 'gevent', 'gevent_uwsgi', 'asyncio', None]
+    last_exc = None
+    for mode in candidates:
+        try:
+            if mode is None:
+                sio = SocketIO(app)
+            else:
+                sio = SocketIO(app, async_mode=mode)
+            logging.debug(f"SocketIO initialized with async_mode={mode}")
+            return sio
+        except Exception as e:
+            # 初期化失敗はデバッグログに出す（標準出力は増やさない）
+            logging.debug(f"SocketIO init failed with async_mode={mode}: {e}")
+            last_exc = e
+    # 全て失敗したらフェイクにフォールバック（ログ出力は抑制）
+    logging.debug("All SocketIO async_mode initializations failed. Falling back to FakeSocketIO.")
+    return FakeSocketIO(app)
+
+# 実際の SocketIO 初期化
+socketio = init_socketio(app)
 
 # --- グローバル変数 ---
 # mcserverhelper.py内のグローバル変数を直接参照・更新する
@@ -371,9 +442,10 @@ def handle_disconnect():
 # --- Main ---
 def run_app():
     """Webサーバーを起動し、ブラウザを開きます。"""
-    print("WebUIを起動しています...")
+    # 起動時の標準出力メッセージを抑制（必要なら logging.info に変更）
+    # print("WebUIを起動しています...")
     url = "http://127.0.0.1:5000"
-    print(f"ブラウザで {url} を開いてください。")
+    # print(f"ブラウザで {url} を開いてください。")
     threading.Timer(1, lambda: webbrowser.open(url)).start()
     socketio.run(app, host='127.0.0.1', port=5000, use_reloader=False, log_output=False)
 
