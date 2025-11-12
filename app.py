@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+
 import subprocess
 import sys
 import os
@@ -46,20 +49,26 @@ socketio = SocketIO(app, async_mode='gevent')
 # ownserver_mc_process -> mc.ownserver_proc
 # ownserver_web_process -> 新しく追加
 ownserver_web_process = None
-log_thread = None
+log_thread_stdout = None
+log_thread_stderr = None
 config = mc.load_config()
 
 # --- Helper Functions ---
-def log_streamer(process):
-    """サーバープロセスの出力を読み取り、WebSocket経由で送信する"""
+def log_streamer_stdout(process):
+    """サーバープロセスのstdoutを読み取り、WebSocket経由で送信する"""
     try:
-        # stdoutとstderrの両方をリアルタイムで読み取る
         for line in iter(process.stdout.readline, ''):
             socketio.emit('console_output', {'log': line})
+    except Exception as e:
+        print(f"Log streaming (stdout) error: {e}")
+
+def log_streamer_stderr(process):
+    """サーバープロセスのstderrを読み取り、WebSocket経由で送信する"""
+    try:
         for line in iter(process.stderr.readline, ''):
             socketio.emit('console_output', {'log': f"[STDERR] {line}"})
     except Exception as e:
-        print(f"Log streaming error: {e}")
+        print(f"Log streaming (stderr) error: {e}")
 
 def get_server_status():
     """サーバーの現在の状態を返す"""
@@ -82,7 +91,7 @@ def status():
 @app.route('/api/start', methods=['POST'])
 def start_server_route():
     """Minecraftサーバーを起動する"""
-    global log_thread
+    global log_thread_stdout, log_thread_stderr
     if get_server_status() == "Running":
         return jsonify(status="Already running"), 400
 
@@ -100,7 +109,8 @@ def start_server_route():
     proc = mc.start_server(config, xmx=xmx, xms=xms, world_type=world_type)
     if proc:
         # ログをWebUIにストリーミングするスレッドを開始
-        log_thread = socketio.start_background_task(target=log_streamer, process=mc.server_proc)
+        log_thread_stdout = socketio.start_background_task(target=log_streamer_stdout, process=mc.server_proc)
+        log_thread_stderr = socketio.start_background_task(target=log_streamer_stderr, process=mc.server_proc)
         socketio.emit('status_update', {'status': 'Running'})
         return jsonify(status="Started")
     else:
