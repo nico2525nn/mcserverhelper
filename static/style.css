@@ -141,6 +141,15 @@ button:active:not(:disabled) {
 }
 
 /* Specific Button Colors */
+.qc-btn {
+    background-color: var(--bg-input);
+    color: var(--text-main);
+}
+
+.qc-btn:hover:not(:disabled) {
+    background-color: #475569;
+}
+
 #start-server-btn,
 #start-ownserver-mc-btn,
 #start-ownserver-web-btn,
@@ -154,15 +163,6 @@ button:active:not(:disabled) {
 .qc-btn-danger,
 #shutdown-btn {
     background-color: var(--danger);
-}
-
-.qc-btn {
-    background-color: var(--bg-input);
-    color: var(--text-main);
-}
-
-.qc-btn:hover:not(:disabled) {
-    background-color: #475569;
 }
 
 .qc-btn-warn {
@@ -338,6 +338,17 @@ select:focus {
 #ownserver-mc-log-wrapper,
 #ownserver-web-log-wrapper {
     height: 150px;
+}
+
+#console-output,
+#ownserver-mc-log,
+#ownserver-web-log {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-all;
+    margin: 0;
+    font-family: inherit;
 }
 
 .command-bar {
