@@ -73,14 +73,20 @@
 
         <!-- Server Properties -->
         <section class="card">
-            <h2>サーバープロパティ (server.properties)</h2>
-            <form id="properties-form">
-                <div id="properties-container" class="properties-grid">
-                    <!-- Properties will be dynamically inserted here -->
+            <details class="collapsible-section">
+                <summary>
+                    <h2>サーバープロパティ (server.properties)</h2>
+                </summary>
+                <div class="details-content">
+                    <form id="properties-form">
+                        <div id="properties-container" class="properties-grid">
+                            <!-- Properties will be dynamically inserted here -->
+                        </div>
+                        <button type="submit">プロパティを保存</button>
+                    </form>
+                    <small>サーバーを再起動すると、一部の設定が反映されます。</small>
                 </div>
-                <button type="submit">プロパティを保存</button>
-            </form>
-            <small>サーバーを再起動すると、一部の設定が反映されます。</small>
+            </details>
         </section>
 
         <!-- Web Console -->
