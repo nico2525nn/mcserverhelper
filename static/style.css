@@ -1,308 +1,419 @@
-/* --- General Layout --- */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #f4f7f9;
-    color: #333;
-    margin: 0;
+/* --- Variables & Reset --- */
+:root {
+    --bg-body: #0f172a;
+    --bg-card: #1e293b;
+    --bg-input: #334155;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --border: #334155;
+    --radius: 12px;
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
 
+body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-body);
+    background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 70%);
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    animation: fadeIn 0.6s ease-out;
+    min-height: 100vh;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Layout --- */
 .container {
-    max-width: 900px;
-    margin: 20px auto;
+    max-width: 1000px;
+    margin: 40px auto;
     padding: 0 20px;
     display: grid;
-    gap: 20px;
+    gap: 24px;
 }
 
 header {
-    background-color: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 15px 0;
-    margin-bottom: 20px;
+    background-color: rgba(30, 41, 59, 0.8);
+    /* Semi-transparent --bg-card */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    margin-bottom: 30px;
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    transition: all 0.3s ease;
 }
 
 h1 {
     text-align: center;
-    font-size: 1.5rem;
-    color: #2c3e50;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
 }
 
 h2 {
-    font-size: 1.2rem;
-    color: #34495e;
-    border-bottom: 2px solid #3498db;
-    padding-bottom: 10px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
     margin-top: 0;
+    margin-bottom: 20px;
 }
 
-/* --- Card Style --- */
+/* --- Components --- */
 .card {
-    background-color: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    background-color: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    /* Subtle primary tint */
 }
 
 .management-grid {
+    display: grid;
     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
 }
 
-/* Server Properties */
-.properties-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-    margin-bottom: 1rem;
-}
-
-.property-item {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    align-items: center;
-    border-top: 1px solid #eee;
-    padding-top: 1rem;
-}
-
-.property-item:first-child {
-    border-top: none;
-    padding-top: 0;
-}
-
-.property-item label {
-    font-weight: bold;
+/* --- Buttons --- */
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
     cursor: pointer;
-}
-
-.property-item .description {
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 0.25rem;
-}
-
-.property-item .input-wrapper {
-    display: flex;
+    transition: all 0.2s ease;
+    color: white;
+    background-color: var(--bg-input);
+    /* Default fallback */
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
-.property-item input,
-.property-item select {
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Specific Button Colors */
+#start-server-btn,
+#start-ownserver-mc-btn,
+#start-ownserver-web-btn,
+.backup-controls button {
+    background-color: var(--success);
+}
+
+#stop-server-btn,
+#stop-ownserver-mc-btn,
+#stop-ownserver-web-btn,
+.qc-btn-danger,
+#shutdown-btn {
+    background-color: var(--danger);
+}
+
+.qc-btn {
+    background-color: var(--bg-input);
+    color: var(--text-main);
+}
+
+.qc-btn:hover:not(:disabled) {
+    background-color: #475569;
+}
+
+.qc-btn-warn {
+    background-color: var(--warning);
+    color: #1e293b;
+    /* Dark text for contrast on yellow */
+}
+
+#command-form button,
+.config-form button,
+#properties-form button {
+    background-color: var(--primary);
+}
+
+#restore-backup-btn {
+    background-color: var(--warning);
+}
+
+/* --- Inputs & Forms --- */
+input,
+select {
+    background-color: var(--bg-body);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
     width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    box-sizing: border-box;
 }
 
-.property-item input[type="checkbox"] {
-    width: auto;
-    height: 1.2rem;
-    width: 1.2rem;
-    margin-right: 0.5rem;
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    transform: translateY(-1px);
 }
 
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
 
-/* --- Server Control --- */
+/* --- Status Indicators --- */
 .status-line {
     display: flex;
     align-items: center;
-    margin: 20px 0;
-    font-size: 1.1rem;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    background: var(--bg-body);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
 }
 
-#server-status {
-    font-weight: bold;
-    margin-left: 10px;
-    padding: 5px 10px;
-    border-radius: 5px;
-    color: #fff;
+#server-status,
+#ownserver-mc-status,
+#ownserver-web-status {
+    font-weight: 600;
+    margin-left: auto;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
-.status-stopped { background-color: #e74c3c; } /* Red */
-.status-running { background-color: #2ecc71; } /* Green */
-.status-unknown { background-color: #95a5a6; } /* Gray */
 
+.status-stopped {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.status-running {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+.status-unknown {
+    background-color: rgba(148, 163, 184, 0.2);
+    color: var(--text-muted);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* --- Server Control Section --- */
 .control-buttons {
     display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
-button {
-    padding: 10px 15px;
-    border: none;
-    border-radius: 5px;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    color: #fff;
-}
-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
+.start-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
 }
 
-#start-server-btn { background-color: #27ae60; }
-#start-server-btn:hover:not(:disabled) { background-color: #229954; }
-
-#stop-server-btn { background-color: #c0392b; }
-#stop-server-btn:hover:not(:disabled) { background-color: #a93226; }
-
-.start-options input {
-    width: 60px;
-    padding: 5px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.start-options select {
-    padding: 5px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
 .start-options small {
-    color: #7f8c8d;
-}
-
-/* --- Web Console --- */
-#console-output-wrapper {
-    background-color: #2c3e50;
-    color: #ecf0f1;
-    font-family: "Menlo", "Consolas", monospace;
-    font-size: 0.9rem;
-    height: 300px;
-    overflow-y: scroll;
-    border-radius: 5px;
-    padding: 15px;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.command-bar {
-    display: flex;
-    margin-top: 10px;
-}
-.command-bar span {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #7f8c8d;
-    margin-right: 10px;
-}
-#command-input {
-    flex-grow: 1;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 8px;
-    font-size: 1rem;
-}
-.command-bar button {
-    background-color: #3498db;
-    margin-left: 10px;
-}
-.command-bar button:hover:not(:disabled) { background-color: #2980b9; }
-
-/* --- Ownserver --- */
-.ownserver-controls .description {
-    font-size: 0.9rem;
-    color: #7f8c8d;
-    margin: -10px 0 15px 0;
-}
-.ownserver-controls button {
-    background-color: #8e44ad;
-}
-.ownserver-controls button:hover:not(:disabled) {
-    background-color: #7d3c98;
+    color: var(--text-muted);
+    grid-column: 1 / -1;
+    margin-top: 4px;
 }
 
 /* --- Quick Commands --- */
 .quick-commands {
     display: grid;
-    grid-template-columns: 1.2fr 1fr;
-    gap: 25px;
-    align-items: flex-start;
+    gap: 24px;
 }
+
 .command-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    background: var(--bg-body);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
 }
-.command-group label {
-    font-weight: bold;
-    color: #555;
-    margin-bottom: 2px;
-}
+
 .input-with-buttons {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
-.input-with-buttons input {
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
+
 .button-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
-.qc-btn { background-color: #7f8c8d; }
-.qc-btn:hover:not(:disabled) { background-color: #6c7a89; }
-.qc-btn-warn { background-color: #f39c12; }
-.qc-btn-warn:hover:not(:disabled) { background-color: #d68910; }
-.qc-btn-danger { background-color: #e74c3c; }
-.qc-btn-danger:hover:not(:disabled) { background-color: #c0392b; }
-.ownserver-controls button:last-of-type {
-    background-color: #c0392b;
-}
-.ownserver-controls button:last-of-type:hover:not(:disabled) {
-    background-color: #a93226;
+
+/* --- Server Properties --- */
+.properties-grid {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
 }
 
-#ownserver-mc-log-wrapper, #ownserver-web-log-wrapper {
-    background-color: #34495e;
-    color: #ecf0f1;
-    font-family: "Menlo", "Consolas", monospace;
-    font-size: 0.8rem;
-    height: 100px;
-    overflow-y: scroll;
-    border-radius: 5px;
-    padding: 10px;
-    white-space: pre-wrap;
-    word-wrap: break-word;
+.property-item {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg-body);
+    border-bottom: 1px solid var(--border);
+    align-items: start;
 }
 
-/* --- Backup --- */
-.backup-controls {
+.property-item:last-child {
+    border-bottom: none;
+}
+
+.property-item label {
+    color: var(--text-main);
+    margin-bottom: 4px;
+    display: block;
+    /* Ensure label is block in grid context */
+}
+
+.property-item .description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.property-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary);
+}
+
+/* --- Web Console --- */
+#console-output-wrapper,
+#ownserver-mc-log-wrapper,
+#ownserver-web-log-wrapper {
+    background-color: #000;
+    color: #d4d4d4;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    height: 350px;
+    overflow-y: auto;
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+#ownserver-mc-log-wrapper,
+#ownserver-web-log-wrapper {
+    height: 150px;
+}
+
+.command-bar {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.backup-controls button {
-    background-color: #16a085;
-}
-.backup-controls button:hover:not(:disabled) { background-color: #117a65; }
-.backup-controls #restore-backup-btn {
-    background-color: #d35400;
-}
-.backup-controls #restore-backup-btn:hover:not(:disabled) { background-color: #b54900; }
-
-.backup-controls select {
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
+    gap: 12px;
+    align-items: center;
 }
 
-/* --- Config --- */
+.command-bar span {
+    color: var(--success);
+    font-weight: bold;
+    font-family: var(--font-mono);
+}
+
+/* --- Backup & Config --- */
+.backup-controls,
 .config-form {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
 }
-.config-form input {
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
 }
-.config-form button {
-    background-color: #3498db;
+
+::-webkit-scrollbar-track {
+    background: var(--bg-body);
 }
-.config-form button:hover:not(:disabled) { background-color: #2980b9; }
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
