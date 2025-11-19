@@ -10,22 +10,21 @@ def check_and_install_dependencies():
     """必要なライブラリがインストールされているか確認し、なければインストールする"""
     # PyInstaller でバンドルした実行ファイル実行時は pip インストール処理をスキップ
     if getattr(sys, 'frozen', False):
-        logging.debug("Frozen executable detected: dependency installation skipped.")
         return
 
     requirements_path = 'requirements.txt'
     if not os.path.exists(requirements_path):
-        print(f"'{requirements_path}' が見つかりません。依存関係のチェックをスキップします。")
         return
 
-    print("依存関係をチェックしています...")
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_path])
-        print("依存関係は最新です。")
+        # 出力を抑制して実行
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("依存関係: OK")
     except subprocess.CalledProcessError:
         try:
             # gevent-websocket might need special handling on some systems
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "gevent-websocket"])
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "gevent-websocket"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("依存関係: OK (修正済み)")
         except subprocess.CalledProcessError as e:
             print(f"エラー: 依存関係のインストールに失敗しました。: {e}")
             print(f"手動で 'pip install -r {requirements_path}' を実行してください。")
@@ -51,7 +50,7 @@ logging.basicConfig(level=logging.ERROR)
 # Flask のデフォルトロガーを無効化（不要なら True のまま)
 app.logger.disabled = True
 # werkzeug のアクセスログを抑制
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
 
 # --- 変更: 複数モードを順に試して SocketIO を初期化する（失敗時はフェイクにフォールバック） ---
 class FakeSocketIO:
@@ -244,9 +243,72 @@ def quick_command_route():
     
     return jsonify(error="Invalid action"), 400
 
+# --- Logic Functions ---
+def start_ownserver_web_logic():
+    """Ownserver (Web) を起動するロジック"""
+    global ownserver_web_process
+    if ownserver_web_process and ownserver_web_process.poll() is None:
+        return False, "Already running"
+    
+    # mcserverhelperの関数を再利用
+    proc = mc.setup_and_run_ownserver(port=5000, log_callback=lambda line: ownserver_log_callback('web', line))
+    if proc:
+        ownserver_web_process = proc
+        socketio.emit('ownserver_status_update', {'type': 'web', 'status': 'Running'})
+        return True, "起動しました"
+    return False, "エラーが発生しました"
+
+def stop_ownserver_web_logic():
+    """Ownserver (Web) を停止するロジック"""
+    global ownserver_web_process
+    if ownserver_web_process and ownserver_web_process.poll() is None:
+        ownserver_web_process.terminate()
+        try:
+            ownserver_web_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            ownserver_web_process.kill()
+            ownserver_web_process.wait()
+        finally:
+            ownserver_web_process = None
+            socketio.emit('ownserver_status_update', {'type': 'web', 'status': 'Stopped'})
+            socketio.emit('console_output', {'log': "ownserver (Web) を停止しました。"})
+        return True, "停止しました"
+    return False, "Already stopped"
+
+def stop_all_services_logic():
+    """すべての関連サービスを停止するロジック"""
+    print("すべてのサービスを停止しています...")
+    socketio.emit('console_output', {'log': "--- すべてのサービスを停止しています ---"})
+
+    # 1. Minecraftサーバーを停止
+    if get_server_status() == "Running":
+        print("Minecraftサーバーを停止しています...")
+        if mc.stop_server():
+            socketio.emit('status_update', {'status': 'Stopped'})
+            socketio.emit('console_output', {'log': "Minecraftサーバーを停止しました。"})
+        else:
+            socketio.emit('console_output', {'log': "Minecraftサーバーは既に停止していました。"})
+
+    # 2. ownserver (MC) を停止
+    if mc.ownserver_proc and mc.ownserver_proc.poll() is None:
+        print("ownserver (MC) を停止しています...")
+        if mc.stop_ownserver():
+            socketio.emit('ownserver_status_update', {'type': 'mc', 'status': 'Stopped'})
+            socketio.emit('console_output', {'log': "ownserver (MC) を停止しました。"})
+        else:
+            socketio.emit('console_output', {'log': "ownserver (MC) は既に停止していました。"})
+
+    # 3. ownserver (Web) を停止
+    stop_ownserver_web_logic()
+
+    print("すべてのサービスが停止しました。")
+
 # --- Ownserver API ---
 def ownserver_log_callback(log_type, line):
     socketio.emit('ownserver_log', {'type': log_type, 'log': line})
+    # URLが含まれる行のみコンソールに表示
+    if "tcp://" in line:
+        print(f"\n[公開URL] {line}")
 
 @app.route('/api/ownserver/status')
 def ownserver_status():
@@ -274,33 +336,19 @@ def stop_ownserver_mc():
 
 @app.route('/api/ownserver/web/start', methods=['POST'])
 def start_ownserver_web():
-    global ownserver_web_process
-    if ownserver_web_process and ownserver_web_process.poll() is None:
-        return jsonify(status="Already running"), 400
-    
-    # mcserverhelperの関数を再利用
-    proc = mc.setup_and_run_ownserver(port=5000, log_callback=lambda line: ownserver_log_callback('web', line))
-    if proc:
-        ownserver_web_process = proc
-        socketio.emit('ownserver_status_update', {'type': 'web', 'status': 'Running'})
-        return jsonify(status="Started")
-    return jsonify(status="Error"), 500
+    success, message = start_ownserver_web_logic()
+    if success:
+        return jsonify(status=message)
+    elif message == "Already running":
+        return jsonify(status=message), 400
+    return jsonify(status=message), 500
 
 @app.route('/api/ownserver/web/stop', methods=['POST'])
 def stop_ownserver_web():
-    global ownserver_web_process
-    if ownserver_web_process and ownserver_web_process.poll() is None:
-        # mcserverhelperの停止ロジックを模倣
-        ownserver_web_process.terminate()
-        try:
-            ownserver_web_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            ownserver_web_process.kill()
-            ownserver_web_process.wait()
-        ownserver_web_process = None
-        socketio.emit('ownserver_status_update', {'type': 'web', 'status': 'Stopped'})
-        return jsonify(status="Stopped")
-    return jsonify(status="Already stopped")
+    success, message = stop_ownserver_web_logic()
+    if success:
+        return jsonify(status=message)
+    return jsonify(status=message)
 
 # --- Backup API ---
 @app.route('/api/backups')
@@ -368,61 +416,17 @@ def properties_route():
 @app.route('/api/stop_all', methods=['POST'])
 def stop_all_services():
     """すべての関連サービスを停止し、アプリケーションを終了する"""
-    print("Stopping all services...")
-    socketio.emit('console_output', {'log': "--- すべてのサービスを停止しています ---"})
-
-    # 1. Minecraftサーバーを停止
-    if get_server_status() == "Running":
-        print("Stopping Minecraft server...")
-        if mc.stop_server():
-            socketio.emit('status_update', {'status': 'Stopped'})
-            socketio.emit('console_output', {'log': "Minecraftサーバーを停止しました。"})
-        else:
-            # このelseブロックは mc.stop_server の実装上、通常は通らない
-            socketio.emit('console_output', {'log': "Minecraftサーバーは既に停止していました。"})
-
-
-    # 2. ownserver (MC) を停止
-    # mc.ownserver_proc はグローバル変数なので直接チェック
-    if mc.ownserver_proc and mc.ownserver_proc.poll() is None:
-        print("Stopping ownserver (MC)...")
-        if mc.stop_ownserver():
-            socketio.emit('ownserver_status_update', {'type': 'mc', 'status': 'Stopped'})
-            socketio.emit('console_output', {'log': "ownserver (MC) を停止しました。"})
-        else:
-            # このelseブロックは mc.stop_ownserver の実装上、通常は通らない
-            socketio.emit('console_output', {'log': "ownserver (MC) は既に停止していました。"})
-
-
-    # 3. ownserver (Web) を停止
-    global ownserver_web_process
-    if ownserver_web_process and ownserver_web_process.poll() is None:
-        print("Stopping ownserver (Web)...")
-        ownserver_web_process.terminate()
-        try:
-            ownserver_web_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            ownserver_web_process.kill()
-            ownserver_web_process.wait()
-        finally:
-            ownserver_web_process = None
-            socketio.emit('ownserver_status_update', {'type': 'web', 'status': 'Stopped'})
-            socketio.emit('console_output', {'log': "ownserver (Web) を停止しました。"})
-
-
-    print("All services stopped. Shutting down web server.")
+    stop_all_services_logic()
+    
+    print("Webサーバーをシャットダウンします。")
     socketio.emit('console_output', {'log': "--- Webサーバーをシャットダウンします ---"})
     
     # 4. Flaskサーバーをシャットダウン
-    # 少し遅延させて、クライアントがメッセージを受信する時間を確保する
     def shutdown():
         socketio.sleep(1)
-        # sys.exit() よりも os._exit(0) の方がこのような状況では確実
         os._exit(0)
 
-    # シャットダウンをバックグラウンドで実行
     socketio.start_background_task(shutdown)
-    
     return jsonify(status="All services stopped. Shutting down.")
 
 
@@ -430,24 +434,57 @@ def stop_all_services():
 @socketio.on('connect')
 def handle_connect():
     """クライアント接続時のイベントハンドラ。"""
-    print('Client connected')
+    # print('Client connected')
     # 接続時に現在の状態を送信
     emit('status_update', {'status': get_server_status()})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """クライアント切断時のイベントハンドラ。"""
-    print('Client disconnected')
+    # print('Client disconnected')
 
 # --- Main ---
 def run_app():
-    """Webサーバーを起動し、ブラウザを開きます。"""
-    # 起動時の標準出力メッセージを抑制（必要なら logging.info に変更）
-    # print("WebUIを起動しています...")
+    """Webサーバーを起動し、ブラウザを開き、CLIメニューを表示する。"""
     url = "http://127.0.0.1:5000"
-    # print(f"ブラウザで {url} を開いてください。")
-    threading.Timer(1, lambda: webbrowser.open(url)).start()
-    socketio.run(app, host='127.0.0.1', port=5000, use_reloader=False, log_output=False)
+    
+    # Flaskサーバーをデーモンスレッドで起動
+    # use_reloader=False は必須 (スレッド内でシグナルハンドラが動作しないため、また2重起動防止)
+    server_thread = threading.Thread(target=lambda: socketio.run(app, host='127.0.0.1', port=5000, use_reloader=False, log_output=False))
+    server_thread.daemon = True
+    server_thread.start()
+
+    # 少し待ってからブラウザを開く
+    time.sleep(1)
+    print(f"\nWebUIのローカルアドレス: {url}")
+    print("ブラウザを自動的に開いています...")
+    webbrowser.open(url)
+
+    # CLIメニュー
+    while True:
+        print("\n[操作を選択してください]")
+        print("1. OwnserverでWebUIを公開")
+        print("2. 全てのサービスを停止")
+        try:
+            choice = input("番号を入力: ")
+            if choice == '1':
+                print("OwnserverでWebUIを公開します...")
+                success, msg = start_ownserver_web_logic()
+                if success:
+                    print(f"成功: {msg}")
+                else:
+                    print(f"状態: {msg}")
+            elif choice == '2':
+                print("全てのサービスを停止しています...")
+                stop_all_services_logic()
+                print("終了します。")
+                os._exit(0)
+            else:
+                print("無効な選択です。")
+        except (KeyboardInterrupt, EOFError):
+            print("\n終了します。")
+            stop_all_services_logic()
+            os._exit(0)
 
 if __name__ == '__main__':
     run_app()
