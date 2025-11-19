@@ -198,45 +198,6 @@ select {
 input:focus,
 select:focus {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
-    transform: translateY(-1px);
-}
-
-label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 500;
-    color: var(--text-muted);
-}
-
-/* --- Status Indicators --- */
-.status-line {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-    font-size: 1rem;
-    background: var(--bg-body);
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-
-#server-status,
-#ownserver-mc-status,
-#ownserver-web-status {
-    font-weight: 600;
-    margin-left: auto;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.status-stopped {
-    background-color: rgba(239, 68, 68, 0.2);
-    color: var(--danger);
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -416,4 +377,62 @@ label {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
+}
+
+/* --- Collapsible Sections --- */
+details.collapsible-section summary {
+    cursor: pointer;
+    list-style: none;
+    position: relative;
+    outline: none;
+}
+
+details.collapsible-section summary::-webkit-details-marker {
+    display: none;
+}
+
+details.collapsible-section summary h2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0;
+    /* Remove margin to let details handle spacing */
+    padding-bottom: 12px;
+    /* Keep padding for border */
+    border-bottom: 1px solid var(--border);
+    /* Ensure border is visible */
+}
+
+details.collapsible-section summary h2::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: rotate(45deg);
+    transition: transform 0.3s ease;
+    margin-left: 10px;
+    margin-top: -4px;
+}
+
+details.collapsible-section[open] summary h2::after {
+    transform: rotate(-135deg);
+    margin-top: 4px;
+}
+
+details.collapsible-section .details-content {
+    margin-top: 20px;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
