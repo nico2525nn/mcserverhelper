@@ -12,7 +12,7 @@ import threading
 
 # ==== Config loading (.env or config.json) ====
 # 設定ファイル: 実行ディレクトリ内の 'mcserve_helper_config.json'
-# サーバーデータ: 'server_data/' (デフォルト)
+# サーバーデータ: '.' (実行ディレクトリ)
 #   - ワールドデータ: 'world/'
 #   - バックアップ: 'backups/' 内
 #   - EULA 同意ファイル: 'eula.txt'
@@ -21,7 +21,7 @@ CONFIG_FILE = "mcserve_helper_config.json"
 DEFAULT_CONFIG = {
     "java_cmd": "java",
     "jar_path": "",
-    "server_data_dir": "server_data", # サーバー関連ファイルのルートディレクトリ
+    "server_data_dir": ".", # サーバー関連ファイルのルートディレクトリ
     "world_dir": "world",
     "backup_dir": "backups",
     "ops_file": "ops.json",
