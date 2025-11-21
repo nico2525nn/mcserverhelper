@@ -10,7 +10,7 @@ pip install pyinstaller
 - このコマンドを使用してビルド（ファイルに応じて変更）
 
 ```
-pyinstaller --onefile --name "MCServerHelper" --add-data "static;static" --add-data "templates;templates" --add-data "requirements.txt;."  app.py
+pyinstaller --onefile --name "MCServerHelper" --add-data "static;static" --add-data "templates;templates" --add-data "requirements.txt;." --hidden-import="simple_websocket" --hidden-import="engineio.async_drivers.threading" --hidden-import="flask_socketio" app.py
 ```
 
 ### インストーラー形式は現在サポートしていません

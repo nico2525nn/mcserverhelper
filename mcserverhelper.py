@@ -114,7 +114,7 @@ def start_server(cfg, xmx="1024M", xms="1024M", world_type="default"):
             for key, value in props.items():
                 f.write(f"{key}={value}\n")
 
-    cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-jar", jar_abs_path, "nogui"]
+    cmd = [cfg['java_cmd'], f"-Xmx{xmx}", f"-Xms{xms}", "-Dfile.encoding=UTF-8", "-jar", jar_abs_path, "nogui"]
     
     # stdoutとstderrをキャプチャするためにPIPEを使用
     try:
@@ -122,11 +122,12 @@ def start_server(cfg, xmx="1024M", xms="1024M", world_type="default"):
             cmd, 
             stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True, 
             cwd=server_data_dir, # サーバーの作業ディレクトリを変更
             encoding='utf-8',
-            errors='replace'
+            errors='replace',
+            bufsize=1
         )
         print(f"サーバーを起動しました (PID: {proc.pid})")
         server_proc = proc
@@ -137,7 +138,6 @@ def start_server(cfg, xmx="1024M", xms="1024M", world_type="default"):
     except Exception as e:
         print(f"Error: サーバーの起動中に予期しないエラーが発生しました: {e}")
         return None
-
 
 def stop_server():
     """サーバーを停止する。"""

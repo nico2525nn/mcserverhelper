@@ -5,6 +5,10 @@ import webbrowser
 import threading
 import time
 import logging
+try:
+    import simple_websocket
+except ImportError:
+    pass
 
 def check_and_install_dependencies():
     """必要なライブラリがインストールされているか確認し、なければインストールする"""
@@ -24,6 +28,8 @@ def check_and_install_dependencies():
         try:
             # gevent-websocket might need special handling on some systems
             subprocess.check_call([sys.executable, "-m", "pip", "install", "gevent-websocket"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # simple-websocket also
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "simple-websocket"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print("依存関係: OK (修正済み)")
         except subprocess.CalledProcessError as e:
             print(f"エラー: 依存関係のインストールに失敗しました。: {e}")
@@ -46,7 +52,16 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.urandom(24)
 
 # --- 追加: ロギング設定（werkzeug/Flask のアクセスログを抑制） ---
-logging.basicConfig(level=logging.ERROR)
+# --debug オプションがある場合のみログファイルに出力する
+if '--debug' in sys.argv:
+    logging.basicConfig(
+        filename='debug.log',
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s: %(message)s'
+    )
+else:
+    logging.basicConfig(level=logging.ERROR)
+
 # Flask のデフォルトロガーを無効化（不要なら True のまま)
 app.logger.disabled = True
 # werkzeug のアクセスログを抑制
@@ -89,6 +104,7 @@ def init_socketio(app):
     """複数の async_mode 候補を順に試して SocketIO を初期化する。
     すべて失敗した場合は FakeSocketIO を返す。
     """
+    # threading を優先する (Windowsでのsubprocessとの相性のため)
     candidates = ['threading', 'eventlet', 'gevent', 'gevent_uwsgi', 'asyncio', None]
     last_exc = None
     for mode in candidates:
@@ -123,13 +139,11 @@ config = mc.load_config()
 def log_streamer(process):
     """サーバープロセスの出力を読み取り、WebSocket経由で送信する"""
     try:
-        # stdoutとstderrの両方をリアルタイムで読み取る
+        # stdoutとstderrはマージされているため、stdoutのみ読み取る
         for line in iter(process.stdout.readline, ''):
             socketio.emit('console_output', {'log': line})
-        for line in iter(process.stderr.readline, ''):
-            socketio.emit('console_output', {'log': f"[STDERR] {line}"})
     except Exception as e:
-        print(f"Log streaming error: {e}")
+        logging.error(f"Log streaming error: {e}")
 
 def get_server_status():
     """サーバーの現在の状態を返す"""
