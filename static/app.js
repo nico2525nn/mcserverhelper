@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io({ transports: ['websocket'] });
+    const socket = io();
 
     // --- DOM Elements ---
     const statusEl = document.getElementById('server-status');
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const maxMemoryInput = document.getElementById('max-memory');
     const minMemoryInput = document.getElementById('min-memory');
     const worldTypeSelect = document.getElementById('world-type');
-    
+
     // Ownserver MC
     const ownserverMcStatusEl = document.getElementById('ownserver-mc-status');
     const startOwnserverMcBtn = document.getElementById('start-ownserver-mc-btn');
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxMem = maxMemoryInput.value || '2';
         const minMem = minMemoryInput.value || '1';
         const worldType = worldTypeSelect.value;
-        
+
         addLog(consoleOutput, '--- Starting server... ---');
         fetch('/api/start', {
             method: 'POST',
@@ -135,22 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 world_type: worldType
             })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status !== 'Started') {
-                addLog(consoleOutput, `--- Start failed: ${data.message || 'Check console'} ---`);
-            }
-        })
-        .catch(err => {
-            console.error('Error starting server:', err);
-            addLog(consoleOutput, '--- Start failed: Network or server error ---');
-        });
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'Started') {
+                    addLog(consoleOutput, `--- Start failed: ${data.message || 'Check console'} ---`);
+                }
+            })
+            .catch(err => {
+                console.error('Error starting server:', err);
+                addLog(consoleOutput, '--- Start failed: Network or server error ---');
+            });
     });
 
     stopBtn.addEventListener('click', () => {
         addLog(consoleOutput, '--- Stopping server... ---');
         fetch('/api/stop', { method: 'POST' })
-        .catch(err => console.error('Error stopping server:', err));
+            .catch(err => console.error('Error stopping server:', err));
     });
 
     commandForm.addEventListener('submit', (e) => {
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command: command })
             })
-            .catch(err => console.error('Error sending command:', err));
+                .catch(err => console.error('Error sending command:', err));
             commandInput.value = '';
         }
     });
@@ -239,10 +239,10 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename: filename })
         })
-        .then(res => res.json())
-        .then(data => {
-            addLog(consoleOutput, `--- ${data.message} ---`);
-        });
+            .then(res => res.json())
+            .then(data => {
+                addLog(consoleOutput, `--- ${data.message} ---`);
+            });
     });
 
     // Config
@@ -254,10 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jar_path: newJarPath })
         })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.message);
-        });
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+            });
     });
 
     // Quick Commands
@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             propsDef = await propsRes.json(); // Assign to the outer scope variable
             const currentProps = await currentPropsRes.json();
-            
+
             propertiesContainer.innerHTML = ''; // Clear existing
 
             for (const key in propsDef) {
@@ -389,18 +389,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(res => res.json())
-            .then(result => {
-                alert(result.message);
-                if(result.status === 'Success') {
-                    // Optionally, re-read values to confirm they were set
-                    addLog(consoleOutput, '--- Server properties saved. A restart may be required for some changes. ---');
-                }
-            })
-            .catch(err => {
-                console.error('Error saving properties:', err);
-                alert('プロパティの保存中にエラーが発生しました。');
-            });
+                .then(res => res.json())
+                .then(result => {
+                    alert(result.message);
+                    if (result.status === 'Success') {
+                        // Optionally, re-read values to confirm they were set
+                        addLog(consoleOutput, '--- Server properties saved. A restart may be required for some changes. ---');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error saving properties:', err);
+                    alert('プロパティの保存中にエラーが発生しました。');
+                });
         });
     }
 
@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         shutdownBtn.addEventListener('click', () => {
             if (confirm('本当にすべてのサービスを停止してアプリケーションを終了しますか？')) {
                 addLog(consoleOutput, '--- Shutting down all services... ---');
-                
+
                 // Disable all buttons to prevent further actions
                 document.querySelectorAll('button').forEach(btn => btn.disabled = true);
 
