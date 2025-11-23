@@ -449,5 +449,168 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Mods and Plugins Upload ---
+    const modDropZone = document.getElementById('mod-drop-zone');
+    const pluginDropZone = document.getElementById('plugin-drop-zone');
+    const modList = document.getElementById('mod-list');
+    const pluginList = document.getElementById('plugin-list');
+
+    const refreshFileList = async (type) => {
+        const listEl = type === 'mod' ? modList : pluginList;
+        if (!listEl) return;
+
+        try {
+            const response = await fetch(`/api/${type}s`); // -> /api/mods or /api/plugins
+            const data = await response.json();
+            
+            listEl.innerHTML = ''; // Clear existing list
+            if (data.files && data.files.length > 0) {
+                data.files.forEach(filename => {
+                    const item = document.createElement('div');
+                    item.className = 'file-list-item';
+                    item.innerHTML = `
+                        <span class="file-name">${filename}</span>
+                        <button class="delete-btn" data-filename="${filename}" data-type="${type}">削除</button>
+                    `;
+                    listEl.appendChild(item);
+                });
+            } else {
+                listEl.innerHTML = '<p>ファイルはありません。</p>';
+            }
+        } catch (error) {
+            console.error(`Error fetching ${type} list:`, error);
+            listEl.innerHTML = `<p>${type}リストの読み込みに失敗しました。</p>`;
+        }
+    };
+    
+    const uploadFiles = (files, type) => {
+        const statusContainer = document.getElementById(`${type}-upload-status`);
+        if (!statusContainer) return;
+
+        statusContainer.innerHTML = ''; // Clear previous statuses
+
+        const uploadPromises = Array.from(files).map(file => {
+            if (!file.name.endsWith('.jar')) {
+                const statusItem = document.createElement('div');
+                statusItem.className = 'status-item error';
+                statusItem.textContent = `${file.name} - Error: Only .jar files are allowed.`;
+                statusContainer.appendChild(statusItem);
+                return Promise.resolve(); // Resolve immediately for non-jar files
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const statusItem = document.createElement('div');
+            statusItem.className = 'status-item';
+            statusItem.textContent = `${file.name} - Uploading...`;
+            statusContainer.appendChild(statusItem);
+
+            return fetch(`/api/upload_${type}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'Success') {
+                    statusItem.textContent = `${data.filename} - Upload successful!`;
+                    statusItem.classList.add('success');
+                } else {
+                    statusItem.textContent = `${file.name} - Error: ${data.message}`;
+                    statusItem.classList.add('error');
+                }
+            })
+            .catch(err => {
+                console.error(`Error uploading ${type}:`, err);
+                statusItem.textContent = `${file.name} - Upload failed.`;
+                statusItem.classList.add('error');
+            });
+        });
+
+        // After all uploads are settled, refresh the list
+        Promise.allSettled(uploadPromises).then(() => {
+            refreshFileList(type);
+        });
+    };
+
+    const setupDropZone = (dropZone, fileInput, type) => {
+        if (!dropZone) return;
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drag-over');
+            }, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            uploadFiles(files, type);
+        }, false);
+        
+        // Handle file input change
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            uploadFiles(files, type);
+        }, false);
+    };
+
+    const setupFileList = (listEl) => {
+        if(!listEl) return;
+        
+        listEl.addEventListener('click', (e) => {
+            if (e.target.matches('.delete-btn')) {
+                const button = e.target;
+                const filename = button.dataset.filename;
+                const type = button.dataset.type;
+
+                if (confirm(`本当に'${filename}'を削除しますか？`)) {
+                    fetch(`/api/delete_${type}/${filename}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'Success') {
+                            refreshFileList(type);
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`Error deleting ${type}:`, err);
+                        alert('ファイルの削除中にエラーが発生しました。');
+                    });
+                }
+            }
+        });
+    };
+
+    if (modDropZone) {
+        setupDropZone(modDropZone, document.getElementById('mod-file-input'), 'mod');
+        setupFileList(modList);
+        refreshFileList('mod');
+    }
+    if (pluginDropZone) {
+        setupDropZone(pluginDropZone, document.getElementById('plugin-file-input'), 'plugin');
+        setupFileList(pluginList);
+        refreshFileList('plugin');
+    }
+
     console.log("MC Server Helper UI Initialized");
 });
