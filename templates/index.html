@@ -149,6 +149,49 @@
                     <button id="restore-backup-btn" disabled>選択したバックアップを復元</button>
                 </div>
             </section>
+
+            <!-- Mods and Plugins Upload -->
+            <section class="card">
+                <h2>Mods & Plugins</h2>
+                {% if mods_folder_exists %}
+                <div class="upload-section">
+                    <h3>Mods</h3>
+                    <p>jarファイルをドラッグ＆ドロップするか、ファイルを選択してアップロードします。</p>
+                    <div class="drop-zone" id="mod-drop-zone" data-upload-type="mod">
+                        <p>ここにファイルをドロップ</p>
+                        <input type="file" id="mod-file-input" class="file-input" accept=".jar" multiple>
+                        <button class="file-select-btn" onclick="document.getElementById('mod-file-input').click()">ファイルを選択</button>
+                    </div>
+                    <div class="upload-status" id="mod-upload-status"></div>
+                    <h4>インストール済み</h4>
+                    <div class="file-list" id="mod-list">
+                        <!-- Mod list will be populated by JavaScript -->
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if plugins_folder_exists %}
+                <div class="upload-section">
+                    <h3>Plugins</h3>
+                    <p>jarファイルをドラッグ＆ドロップするか、ファイルを選択してアップロードします。</p>
+                    <div class="drop-zone" id="plugin-drop-zone" data-upload-type="plugin">
+                        <p>ここにファイルをドロップ</p>
+                        <input type="file" id="plugin-file-input" class="file-input" accept=".jar" multiple>
+                        <button class="file-select-btn" onclick="document.getElementById('plugin-file-input').click()">ファイルを選択</button>
+                    </div>
+                    <div class="upload-status" id="plugin-upload-status"></div>
+                    <h4>インストール済み</h4>
+                    <div class="file-list" id="plugin-list">
+                        <!-- Plugin list will be populated by JavaScript -->
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if not mods_folder_exists and not plugins_folder_exists %}
+                <p>ModsまたはPluginsフォルダが見つかりません。</p>
+                {% endif %}
+            </section>
+
             <!-- Settings -->
             <section class="card">
                 <h2>設定</h2>

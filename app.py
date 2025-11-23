@@ -40,6 +40,7 @@ def check_and_install_dependencies():
 check_and_install_dependencies()
 
 from flask import Flask, render_template, jsonify, request
+from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit
 import threading
 import mcserverhelper as mc
@@ -155,7 +156,11 @@ def get_server_status():
 @app.route('/')
 def index():
     """メインページを表示します。"""
-    return render_template('index.html')
+    mods_folder_exists = os.path.isdir('mods')
+    plugins_folder_exists = os.path.isdir('plugins')
+    return render_template('index.html', 
+                           mods_folder_exists=mods_folder_exists, 
+                           plugins_folder_exists=plugins_folder_exists)
 
 @app.route('/api/status')
 def status():
@@ -256,6 +261,102 @@ def quick_command_route():
             return jsonify(status="Error sending command"), 500
     
     return jsonify(error="Invalid action"), 400
+
+@app.route('/api/upload_mod', methods=['POST'])
+def upload_mod_route():
+    """Modファイルをアップロードする"""
+    if 'file' not in request.files:
+        return jsonify(status="Error", message="ファイルがありません"), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify(status="Error", message="ファイルが選択されていません"), 400
+    if file:
+        filename = secure_filename(file.filename)
+        # フォルダが存在することを確認
+        if not os.path.isdir('mods'):
+             os.makedirs('mods')
+        file.save(os.path.join('mods', filename))
+        socketio.emit('console_output', {'log': f"Mod '{filename}' がアップロードされました。"})
+        return jsonify(status="Success", filename=filename)
+    return jsonify(status="Error", message="不明なエラー"), 500
+
+@app.route('/api/upload_plugin', methods=['POST'])
+def upload_plugin_route():
+    """Pluginファイルをアップロードする"""
+    if 'file' not in request.files:
+        return jsonify(status="Error", message="ファイルがありません"), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify(status="Error", message="ファイルが選択されていません"), 400
+    if file:
+        filename = secure_filename(file.filename)
+        # フォルダが存在することを確認
+        if not os.path.isdir('plugins'):
+            os.makedirs('plugins')
+        file.save(os.path.join('plugins', filename))
+        socketio.emit('console_output', {'log': f"Plugin '{filename}' がアップロードされました。"})
+        return jsonify(status="Success", filename=filename)
+    return jsonify(status="Error", message="不明なエラー"), 500
+
+# --- Mods & Plugins API ---
+def list_files_in_dir(directory):
+    """指定されたディレクトリ内の.jarファイルをリストアップする"""
+    if not os.path.isdir(directory):
+        return []
+    try:
+        # .jar ファイルのみをリストアップ
+        return [f for f in os.listdir(directory) if f.endswith('.jar') and os.path.isfile(os.path.join(directory, f))]
+    except OSError:
+        return []
+
+@app.route('/api/mods', methods=['GET'])
+def list_mods_route():
+    """modsフォルダ内のファイル一覧を返す"""
+    return jsonify(files=list_files_in_dir('mods'))
+
+@app.route('/api/plugins', methods=['GET'])
+def list_plugins_route():
+    """pluginsフォルダ内のファイル一覧を返す"""
+    return jsonify(files=list_files_in_dir('plugins'))
+
+@app.route('/api/delete_mod/<path:filename>', methods=['DELETE'])
+def delete_mod_route(filename):
+    """Modファイルを削除する"""
+    # Sanitize filename to prevent directory traversal
+    safe_filename = secure_filename(filename)
+    if safe_filename != filename:
+        return jsonify(status="Error", message="無効なファイル名です。"), 400
+    
+    file_path = os.path.join('mods', safe_filename)
+    
+    try:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+            socketio.emit('console_output', {'log': f"Mod '{safe_filename}' が削除されました。"})
+            return jsonify(status="Success", message="ファイルが削除されました。")
+        else:
+            return jsonify(status="Error", message="ファイルが見つかりません。"), 404
+    except OSError as e:
+        return jsonify(status="Error", message=f"ファイルの削除中にエラーが発生しました: {e}"), 500
+
+@app.route('/api/delete_plugin/<path:filename>', methods=['DELETE'])
+def delete_plugin_route(filename):
+    """Pluginファイルを削除する"""
+    safe_filename = secure_filename(filename)
+    if safe_filename != filename:
+        return jsonify(status="Error", message="無効なファイル名です。"), 400
+        
+    file_path = os.path.join('plugins', safe_filename)
+    
+    try:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+            socketio.emit('console_output', {'log': f"Plugin '{safe_filename}' が削除されました。"})
+            return jsonify(status="Success", message="ファイルが削除されました。")
+        else:
+            return jsonify(status="Error", message="ファイルが見つかりません。"), 404
+    except OSError as e:
+        return jsonify(status="Error", message=f"ファイルの削除中にエラーが発生しました: {e}"), 500
 
 # --- Logic Functions ---
 def start_ownserver_web_logic():
