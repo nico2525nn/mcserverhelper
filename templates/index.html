@@ -11,148 +11,84 @@
 
 <body>
     <header>
-        <h1>Minecraft Server Helper</h1>
+        <h1>MC Server Helper</h1>
     </header>
-
     <main class="container">
-        <!-- Server Control -->
-        <section class="card">
-            <h2>サーバーコントロール</h2>
-            <div class="status-line">
-                <span>状態:</span>
-                <span id="server-status" class="status-stopped">Stopped</span>
-            </div>
-            <div class="control-buttons">
-                <button id="start-server-btn">サーバー起動</button>
-                <button id="stop-server-btn" disabled>サーバー停止</button>
-            </div>
-            <div class="start-options">
-                <label for="max-memory">最大メモリ (GB):</label>
-                <input type="number" id="max-memory" value="2">
-                <label for="min-memory">最小メモリ (GB):</label>
-                <input type="number" id="min-memory" value="1">
-            </div>
-            <div class="start-options">
-                <label for="world-type">ワールドタイプ:</label>
-                <select id="world-type">
-                    <option value="default" selected>通常 (default)</option>
-                    <option value="flat">スーパーフラット (flat)</option>
-                    <option value="large_biomes">巨大バイオーム (large_biomes)</option>
-                    <option value="amplified">アンプリファイド (amplified)</option>
-                </select>
-                <small>（新しいワールドを生成する場合に適用されます）</small>
-            </div>
-        </section>
+        <!-- Left Column -->
+        <div class="column">
+            <!-- 1. Server Control -->
+            <section class="card">
+                <h2>サーバーコントロール</h2>
+                <div class="status-line">
+                    <span>状態:</span>
+                    <span id="server-status" class="status-stopped">Stopped</span>
+                </div>
+                <div class="control-buttons">
+                    <button id="start-server-btn">サーバー起動</button>
+                    <button id="stop-server-btn" disabled>サーバー停止</button>
+                    <button id="open-folder-btn" class="qc-btn" title="サーバーフォルダを開く">📂 フォルダを開く</button>
+                </div>
+                <div class="start-options">
+                    <label for="max-memory">最大メモリ (GB):</label>
+                    <input type="number" id="max-memory" value="2">
+                    <label for="min-memory">最小メモリ (GB):</label>
+                    <input type="number" id="min-memory" value="1">
+                </div>
+                <div class="start-options">
+                    <label for="world-type">ワールドタイプ:</label>
+                    <select id="world-type">
+                        <option value="default" selected>通常 (default)</option>
+                        <option value="flat">スーパーフラット (flat)</option>
+                        <option value="large_biomes">巨大バイオーム (large_biomes)</option>
+                        <option value="amplified">アンプリファイド (amplified)</option>
+                    </select>
+                    <small>（新しいワールドを生成する場合に適用されます）</small>
+                </div>
+            </section>
 
-        <!-- Quick Commands -->
-        <section class="card">
-            <h2>クイックコマンド</h2>
-            <div class="quick-commands">
-                <div class="command-group">
-                    <label for="player-name-input">プレイヤー操作:</label>
-                    <div class="input-with-buttons">
-                        <input type="text" id="player-name-input" placeholder="プレイヤー名">
+            <!-- 2. Web Console -->
+            <section class="card console-card">
+                <h2>Webコンソール</h2>
+                <div id="console-output-wrapper">
+                    <pre id="console-output"></pre>
+                </div>
+                <form id="command-form" class="command-bar">
+                    <span>&gt;</span>
+                    <input type="text" id="command-input" placeholder="サーバーコマンドを入力...">
+                    <button type="submit">送信</button>
+                </form>
+            </section>
+
+            <!-- 3. Quick Commands -->
+            <section class="card">
+                <h2>クイックコマンド</h2>
+                <div class="quick-commands">
+                    <div class="command-group">
+                        <label for="player-name-input">プレイヤー操作:</label>
+                        <div class="input-with-buttons">
+                            <input type="text" id="player-name-input" placeholder="プレイヤー名">
+                            <div class="button-row">
+                                <button class="qc-btn" data-command="op">OP付与</button>
+                                <button class="qc-btn" data-command="deop">OP剥奪</button>
+                                <button class="qc-btn qc-btn-warn" data-command="kick">Kick</button>
+                                <button class="qc-btn qc-btn-danger" data-command="ban">BAN</button>
+                                <button class="qc-btn" data-command="pardon">BAN解除</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="command-group">
+                        <label>ワールド操作:</label>
                         <div class="button-row">
-                            <button class="qc-btn" data-command="op">OP付与</button>
-                            <button class="qc-btn" data-command="deop">OP剥奪</button>
-                            <button class="qc-btn qc-btn-warn" data-command="kick">Kick</button>
-                            <button class="qc-btn qc-btn-danger" data-command="ban">BAN</button>
-                            <button class="qc-btn" data-command="pardon">BAN解除</button>
+                            <button class="qc-btn" data-command="time_day">時間: 昼</button>
+                            <button class="qc-btn" data-command="time_night">時間: 夜</button>
+                            <button class="qc-btn" data-command="weather_clear">天候: 晴れ</button>
+                            <button class="qc-btn" data-command="weather_rain">天候: 雨</button>
                         </div>
                     </div>
                 </div>
-                <div class="command-group">
-                    <label>ワールド操作:</label>
-                    <div class="button-row">
-                        <button class="qc-btn" data-command="time_day">時間: 昼</button>
-                        <button class="qc-btn" data-command="time_night">時間: 夜</button>
-                        <button class="qc-btn" data-command="weather_clear">天候: 晴れ</button>
-                        <button class="qc-btn" data-command="weather_rain">天候: 雨</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Server Properties -->
-        <section class="card">
-            <details class="collapsible-section">
-                <summary>
-                    <h2>サーバープロパティ (server.properties)</h2>
-                </summary>
-                <div class="details-content">
-                    <form id="properties-form">
-                        <div id="properties-container" class="properties-grid">
-                            <!-- Properties will be dynamically inserted here -->
-                        </div>
-                        <button type="submit">プロパティを保存</button>
-                    </form>
-                    <small>サーバーを再起動すると、一部の設定が反映されます。</small>
-                </div>
-            </details>
-        </section>
-
-        <!-- Web Console -->
-        <section class="card">
-            <h2>Webコンソール</h2>
-            <div id="console-output-wrapper">
-                <pre id="console-output"></pre>
-            </div>
-            <form id="command-form" class="command-bar">
-                <span>&gt;</span>
-                <input type="text" id="command-input" placeholder="サーバーコマンドを入力...">
-                <button type="submit">送信</button>
-            </form>
-        </section>
-
-        <!-- Management Sections (Future Implementation) -->
-        <div class="management-grid">
-            <!-- Ownserver for Minecraft -->
-            <section class="card">
-                <h2>Ownserver (Minecraft)</h2>
-                <div class="ownserver-controls">
-                    <div class="status-line">
-                        <span>状態:</span>
-                        <span id="ownserver-mc-status" class="status-stopped">Stopped</span>
-                    </div>
-                    <div class="control-buttons">
-                        <button id="start-ownserver-mc-btn">公開</button>
-                        <button id="stop-ownserver-mc-btn" disabled>停止</button>
-                    </div>
-                    <p class="description">Minecraftサーバー (ポート25565) を外部に公開します。</p>
-                    <div id="ownserver-mc-log-wrapper">
-                        <pre id="ownserver-mc-log"></pre>
-                    </div>
-                </div>
-            </section>
-            <!-- Ownserver for WebUI -->
-            <section class="card">
-                <h2>Ownserver (WebUI)</h2>
-                <div class="ownserver-controls">
-                    <div class="status-line">
-                        <span>状態:</span>
-                        <span id="ownserver-web-status" class="status-stopped">Stopped</span>
-                    </div>
-                    <div class="control-buttons">
-                        <button id="start-ownserver-web-btn">公開</button>
-                        <button id="stop-ownserver-web-btn" disabled>停止</button>
-                    </div>
-                    <p class="description">このWeb管理画面 (ポート5000) を外部に公開します。</p>
-                    <div id="ownserver-web-log-wrapper">
-                        <pre id="ownserver-web-log"></pre>
-                    </div>
-                </div>
-            </section>
-            <!-- Backups -->
-            <section class="card">
-                <h2>バックアップ</h2>
-                <div class="backup-controls">
-                    <button id="create-backup-btn">今すぐバックアップを作成</button>
-                    <select id="backup-list"></select>
-                    <button id="restore-backup-btn" disabled>選択したバックアップを復元</button>
-                </div>
             </section>
 
-            <!-- Mods and Plugins Upload -->
+            <!-- 4. Mods & Plugins Upload -->
             <section class="card">
                 <div class="section-header">
                     <h2>Mods & Plugins</h2>
@@ -200,7 +136,7 @@
                 {% endif %}
             </section>
 
-            <!-- Modrinth Browser -->
+            <!-- 5. Modrinth Browser -->
             <section class="card">
                 <h2>Modrinth ブラウザ</h2>
                 <div class="modrinth-search-form">
@@ -231,8 +167,80 @@
                     <!-- Search results will be dynamically inserted here -->
                 </div>
             </section>
+        </div>
 
-            <!-- Settings -->
+        <!-- Right Column -->
+        <div class="column">
+            <!-- 6. Server Properties -->
+            <section class="card">
+                <details class="collapsible-section">
+                    <summary>
+                        <h2>サーバープロパティ (server.properties)</h2>
+                    </summary>
+                    <div class="details-content">
+                        <div class="property-search-container">
+                            <input type="text" id="property-search-input" placeholder="設定を検索 (日本語名、ID、説明)...">
+                        </div>
+                        <form id="properties-form" class="properties-form">
+                            <div id="properties-container" class="properties-grid">
+                                <!-- Properties will be dynamically inserted here -->
+                            </div>
+                            <button type="submit" class="save-btn">設定を保存</button>
+                        </form>
+                        <small>サーバーを再起動すると、一部の設定が反映されます。</small>
+                    </div>
+                </details>
+            </section>
+
+            <!-- 7. Ownserver (Minecraft) -->
+            <section class="card">
+                <h2>Ownserver (Minecraft)</h2>
+                <div class="ownserver-controls">
+                    <div class="status-line">
+                        <span>状態:</span>
+                        <span id="ownserver-mc-status" class="status-stopped">Stopped</span>
+                    </div>
+                    <div class="control-buttons">
+                        <button id="start-ownserver-mc-btn">公開</button>
+                        <button id="stop-ownserver-mc-btn" disabled>停止</button>
+                    </div>
+                    <p class="description">Minecraftサーバー (ポート25565) を外部に公開します。</p>
+                    <div id="ownserver-mc-log-wrapper">
+                        <pre id="ownserver-mc-log"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 8. Ownserver (WebUI) -->
+            <section class="card">
+                <h2>Ownserver (WebUI)</h2>
+                <div class="ownserver-controls">
+                    <div class="status-line">
+                        <span>状態:</span>
+                        <span id="ownserver-web-status" class="status-stopped">Stopped</span>
+                    </div>
+                    <div class="control-buttons">
+                        <button id="start-ownserver-web-btn">公開</button>
+                        <button id="stop-ownserver-web-btn" disabled>停止</button>
+                    </div>
+                    <p class="description">このWeb管理画面 (ポート5000) を外部に公開します。</p>
+                    <div id="ownserver-web-log-wrapper">
+                        <pre id="ownserver-web-log"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 9. Backups -->
+            <section class="card">
+                <h2>バックアップ</h2>
+                <div class="backup-controls">
+                    <button id="create-backup-btn">今すぐバックアップを作成</button>
+                    <select id="backup-list"></select>
+                    <button id="restore-backup-btn" disabled>選択したバックアップを復元</button>
+                </div>
+            </section>
+
+            <!-- 10. Settings -->
             <section class="card">
                 <h2>設定</h2>
 
@@ -256,13 +264,13 @@
                 <hr class="section-divider">
 
                 <form id="config-form" class="config-form">
-                    <label for="jar-path-input">server.jar のパス (手動設定):</label>
+                    <label for="jar-path-input">server.jar のパス (相対パス可):</label>
                     <input type="text" id="jar-path-input" placeholder="例: server/paper.jar">
                     <button type="submit">保存</button>
                 </form>
             </section>
 
-            <!-- System -->
+            <!-- 11. System -->
             <section class="card">
                 <h2>システム</h2>
                 <div class="system-controls">

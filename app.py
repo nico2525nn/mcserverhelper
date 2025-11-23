@@ -201,12 +201,39 @@ def start_server_route():
     world_type = request.json.get('world_type', 'default')
     
     # JARファイルの存在チェック
-    jar_abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config['jar_path']) if not os.path.isabs(config['jar_path']) else config['jar_path']
-    if not config.get('jar_path') or not os.path.exists(jar_abs_path):
-        socketio.emit('console_output', {'log': "ERROR: server.jarのパスが設定されていないか、ファイルが存在しません。"})
-        return jsonify(status="Error", message="JAR file not configured or found."), 400
+    # JARファイルの存在チェック
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    jar_path = config.get('jar_path', '').strip()
+    
+    if not jar_path:
+        socketio.emit('console_output', {'log': "ERROR: server.jarのパスが設定されていません。"})
+        return jsonify(status="Error", message="JAR file not configured."), 400
 
-    proc = mc.start_server(config, xmx=xmx, xms=xms, world_type=world_type)
+    # 1. 絶対パスとしてチェック
+    if os.path.isabs(jar_path):
+        jar_abs_path = jar_path
+    else:
+        # 2. スクリプトディレクトリからの相対パスとしてチェック
+        jar_abs_path = os.path.join(script_dir, jar_path)
+    
+    # デバッグログ
+    socketio.emit('console_output', {'log': f"Checking JAR path: {jar_abs_path}"})
+
+    if not os.path.exists(jar_abs_path):
+        # 3. カレントディレクトリからの相対パスも試す (念のため)
+        cwd_abs_path = os.path.abspath(jar_path)
+        if os.path.exists(cwd_abs_path):
+             jar_abs_path = cwd_abs_path
+             socketio.emit('console_output', {'log': f"Found JAR in CWD: {jar_abs_path}"})
+        else:
+             socketio.emit('console_output', {'log': f"ERROR: server.jarが見つかりません: {jar_abs_path}"})
+             return jsonify(status="Error", message=f"JAR file not found at {jar_abs_path}"), 400
+
+    # 解決した絶対パスを使ってサーバーを起動するための設定コピーを作成
+    run_config = config.copy()
+    run_config['jar_path'] = jar_abs_path
+
+    proc = mc.start_server(run_config, xmx=xmx, xms=xms, world_type=world_type)
     if proc:
         # ログをWebUIにストリーミングするスレッドを開始
         log_thread = socketio.start_background_task(target=log_streamer, process=mc.server_proc)
@@ -229,6 +256,21 @@ def stop_server_route():
         return jsonify(status="Stopped")
     else:
         return jsonify(status="Error"), 500
+
+@app.route('/api/open_folder', methods=['POST'])
+def open_folder_route():
+    """サーバーフォルダを開く"""
+    try:
+        path = os.getcwd()
+        if os.name == 'nt':
+            os.startfile(path)
+        elif os.name == 'posix':
+            subprocess.call(['open', path])
+        else:
+            subprocess.call(['xdg-open', path])
+        return jsonify(status="Success")
+    except Exception as e:
+        return jsonify(status="Error", message=str(e)), 500
 
 @app.route('/api/command', methods=['POST'])
 def command_route():
@@ -845,7 +887,7 @@ def config_route():
         new_config_data = request.json
         # jar_pathのみ更新を許可
         if 'jar_path' in new_config_data:
-            config['jar_path'] = new_config_data['jar_path']
+            config['jar_path'] = new_config_data['jar_path'].strip()
             mc.save_config(config)
             return jsonify(status="Success", message="設定を保存しました。")
         return jsonify(status="Error", message="無効な設定です。"), 400

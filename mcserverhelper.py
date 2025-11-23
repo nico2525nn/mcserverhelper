@@ -78,19 +78,14 @@ def start_server(cfg, xmx="1024M", xms="1024M", world_type="default"):
     成功した場合はsubprocess.Popenオブジェクトを、失敗した場合はNoneを返す。
     """
     global server_proc
-
+    
     server_data_dir = cfg.get('server_data_dir', '.')
     ensure_dir(server_data_dir)
-    
     ensure_eula(cfg)
 
-    # jar_pathが相対パスの場合、スクリプトの場所からの相対パスとして解決し、絶対パスに変換
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    jar_abs_path = os.path.join(script_dir, cfg['jar_path']) if not os.path.isabs(cfg['jar_path']) else cfg['jar_path']
+    # jar_pathはapp.pyですでに絶対パスに解決されて渡されることを想定
+    jar_abs_path = cfg['jar_path']
     
-    if not os.path.exists(jar_abs_path):
-        print(f"Error: JARファイル '{jar_abs_path}' が見つかりません。設定を確認してください。")
-        return None
     if server_proc and server_proc.poll() is None:
         print("サーバーは既に起動しています。")
         return server_proc
@@ -171,6 +166,7 @@ def stop_server():
 def send_command(cmd):
     """サーバーにコマンドを送信する。"""
     global server_proc
+
     if not server_proc or server_proc.poll() is not None:
         print("サーバーが起動していないか、既に停止しています。")
         return False
