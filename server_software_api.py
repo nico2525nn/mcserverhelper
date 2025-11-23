@@ -388,6 +388,141 @@ class ForgeClient:
             raise ServerSoftwareException(f"Forge ダウンロードURL取得エラー: {e}")
 
 
+class MohistClient:
+    """MohistMC サーバー用APIクライアント"""
+    
+    BASE_URL = "https://api.mohistmc.com"
+    
+    def get_projects(self) -> List[str]:
+        """利用可能なプロジェクトのリストを取得（デバッグ用）"""
+        try:
+            response = requests.get(f"{self.BASE_URL}/project/list", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            import logging
+            logging.debug(f"Available Mohist projects: {data}")
+            return data if isinstance(data, list) else []
+        except requests.RequestException as e:
+            import logging
+            logging.error(f"Mohist プロジェクト一覧取得エラー: {e}")
+            return []
+    
+    def get_versions(self) -> List[str]:
+        """利用可能なバージョンのリストを取得"""
+        try:
+            response = requests.get(f"{self.BASE_URL}/project/mohist/versions", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            versions = []
+            if isinstance(data, dict) and 'versions' in data:
+                # バージョンリストを取得
+                version_data = data['versions']
+                # 各要素が文字列かオブジェクトか判定
+                if version_data and isinstance(version_data[0], dict):
+                    # オブジェクトの場合、nameフィールドを抽出
+                    versions = [v.get('name', v.get('version', str(v))) for v in version_data]
+                else:
+                    versions = version_data
+            elif isinstance(data, list):
+                # リストの場合
+                if data and isinstance(data[0], dict):
+                    # オブジェクトの場合、nameフィールドを抽出
+                    versions = [v.get('name', v.get('version', str(v))) for v in data]
+                else:
+                    versions = data
+            
+            # 新しい順に並べ替え（仮定）
+            return versions[::-1] if versions else []
+                
+        except requests.RequestException as e:
+            raise ServerSoftwareException(f"Mohist バージョン取得エラー: {e}")
+    
+    def get_builds(self, version: str) -> List[int]:
+        """指定されたバージョンのビルドリストを取得"""
+        try:
+            url = f"{self.BASE_URL}/project/mohist/{version}/builds"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # デバッグ用: レスポンスの型と内容をログ出力
+            import logging
+            logging.debug(f"Mohist builds API response type: {type(data)}")
+            logging.debug(f"Mohist builds API response: {data}")
+            
+            builds = []
+            if isinstance(data, list):
+                logging.debug(f"Response is a list with {len(data)} items")
+                # リストの場合
+                if data and isinstance(data[0], dict):
+                    logging.debug(f"First item keys: {data[0].keys()}")
+                    # オブジェクトの場合、numberまたはbuildフィールドを抽出
+                    builds = []
+                    for b in data:
+                        if 'number' in b:
+                            builds.append(int(b['number']))
+                        elif 'build' in b:
+                            builds.append(int(b['build']))
+                        elif 'id' in b:
+                            builds.append(int(b['id']))
+                        elif 'buildNumber' in b:
+                            builds.append(int(b['buildNumber']))
+                else:
+                    # 既に数値の場合
+                    builds = [int(b) for b in data]
+            elif isinstance(data, dict):
+                logging.debug(f"Response is a dict with keys: {data.keys()}")
+                if 'builds' in data:
+                    # builds キーがある場合
+                    build_data = data['builds']
+                    if build_data and isinstance(build_data[0], dict):
+                        builds = []
+                        for b in build_data:
+                            if 'number' in b:
+                                builds.append(int(b['number']))
+                            elif 'build' in b:
+                                builds.append(int(b['build']))
+                            elif 'id' in b:
+                                builds.append(int(b['id']))
+                            elif 'buildNumber' in b:
+                                builds.append(int(b['buildNumber']))
+                    else:
+                        builds = [int(b) for b in build_data]
+            
+            logging.debug(f"Extracted builds: {builds}")
+            
+            # 新しい順（降順）にソート
+            return sorted(builds, reverse=True) if builds else []
+            
+        except requests.RequestException as e:
+            raise ServerSoftwareException(f"Mohist ビルド取得エラー: {e}")
+        except Exception as e:
+            import logging
+            logging.error(f"Unexpected error in get_builds: {e}")
+            raise ServerSoftwareException(f"Mohist ビルド取得エラー: {e}")
+    
+    def get_download_url(self, version: str, build: int) -> Tuple[str, str]:
+        """
+        指定されたバージョンとビルドのダウンロードURLを取得
+        
+        Args:
+            version: Minecraftバージョン
+            build: ビルド番号
+            
+        Returns:
+            (download_url, filename)のタプル
+        """
+        try:
+            download_url = f"{self.BASE_URL}/project/mohist/{version}/builds/{build}/download"
+            filename = f"mohist-{version}-{build}.jar"
+            
+            return download_url, filename
+            
+        except Exception as e:
+            raise ServerSoftwareException(f"Mohist ダウンロードURL取得エラー: {e}")
+
+
 # 統合クライアント
 class ServerSoftwareClient:
     """全てのサーバーソフトウェアを統合したクライアント"""
@@ -399,6 +534,7 @@ class ServerSoftwareClient:
         self.fabric = FabricClient()
         self.neoforge = NeoForgeClient()
         self.forge = ForgeClient()
+        self.mohist = MohistClient()
     
     def get_software_types(self) -> List[Dict[str, str]]:
         """利用可能なサーバーソフトウェアタイプのリストを取得"""
@@ -409,6 +545,7 @@ class ServerSoftwareClient:
             {"id": "fabric", "name": "Fabric"},
             {"id": "neoforge", "name": "NeoForge"},
             {"id": "forge", "name": "Forge"},
+            {"id": "mohist", "name": "Mohist"},
         ]
     
     def get_client(self, software_type: str):
@@ -420,6 +557,7 @@ class ServerSoftwareClient:
             "fabric": self.fabric,
             "neoforge": self.neoforge,
             "forge": self.forge,
+            "mohist": self.mohist,
         }
         
         client = clients.get(software_type)
@@ -503,6 +641,21 @@ class ServerSoftwareClient:
                             "latest_forge_version": forge_versions[0],
                             "update_available": True
                         }
+
+            elif software_type == "mohist":
+                # Mohistの更新をチェック
+                if current_build:
+                    builds = client.get_builds(current_version)
+                    if builds:
+                        latest_build = max(builds)
+                        if str(latest_build) != str(current_build):
+                            return {
+                                "software_type": software_type,
+                                "current_version": current_version,
+                                "current_build": current_build,
+                                "latest_build": latest_build,
+                                "update_available": True
+                            }
             
             return None
             

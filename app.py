@@ -179,8 +179,8 @@ def index():
     mods_folder_exists = os.path.isdir('mods')
     plugins_folder_exists = os.path.isdir('plugins')
     return render_template('index.html', 
-                           mods_folder_exists=mods_folder_exists, 
-                           plugins_folder_exists=plugins_folder_exists)
+        mods_folder_exists=mods_folder_exists, 
+        plugins_folder_exists=plugins_folder_exists)
 
 @app.route('/api/status')
 def status():
@@ -223,11 +223,11 @@ def start_server_route():
         # 3. カレントディレクトリからの相対パスも試す (念のため)
         cwd_abs_path = os.path.abspath(jar_path)
         if os.path.exists(cwd_abs_path):
-             jar_abs_path = cwd_abs_path
-             socketio.emit('console_output', {'log': f"Found JAR in CWD: {jar_abs_path}"})
+            jar_abs_path = cwd_abs_path
+            socketio.emit('console_output', {'log': f"Found JAR in CWD: {jar_abs_path}"})
         else:
-             socketio.emit('console_output', {'log': f"ERROR: server.jarが見つかりません: {jar_abs_path}"})
-             return jsonify(status="Error", message=f"JAR file not found at {jar_abs_path}"), 400
+            socketio.emit('console_output', {'log': f"ERROR: server.jarが見つかりません: {jar_abs_path}"})
+            return jsonify(status="Error", message=f"JAR file not found at {jar_abs_path}"), 400
 
     # 解決した絶対パスを使ってサーバーを起動するための設定コピーを作成
     run_config = config.copy()
@@ -636,6 +636,8 @@ def software_versions_route():
         elif software_type == "forge":
             # Forgeの場合、Minecraftバージョンのリストを返す
             versions = client.get_mc_versions()
+        elif software_type == "mohist":
+            versions = client.get_versions()
         else:
             return jsonify({"error": f"Unsupported project type: {software_type}"}), 400
         
@@ -673,6 +675,14 @@ def software_builds_route():
             # Forgeの場合、指定されたMCバージョンのForgeバージョンリストを返す
             forge_versions = client.get_versions_by_mc_version(version)
             return jsonify(forge_versions)
+        elif software_type == "mohist":
+            builds = client.get_builds(version)
+            logging.debug(f"Mohist builds for version {version}: {builds}")
+            if not builds:
+                socketio.emit('console_output', {'log': f"警告: Mohist {version} のビルドが見つかりませんでした。別のバージョンを試してください。"})
+            else:
+                socketio.emit('console_output', {'log': f"Mohist {version} のビルド数: {len(builds)}"})
+            return jsonify(builds)
         elif software_type in ["vanilla", "neoforge"]:
             # Vanilla と NeoForge にはビルドの概念がない
             return jsonify([])
@@ -711,6 +721,8 @@ def install_server_software_route():
             download_url, filename = client.get_download_url(version)
         elif software_type == "forge":
             # versionはmc_version、buildはforge_versionとして使用
+            download_url, filename = client.get_download_url(version, build)
+        elif software_type == "mohist":
             download_url, filename = client.get_download_url(version, build)
         else:
             return jsonify(status="Error", message=f"Unsupported project type: {software_type}."), 400
