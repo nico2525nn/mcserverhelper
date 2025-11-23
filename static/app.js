@@ -393,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(result => {
                     alert(result.message);
                     if (result.status === 'Success') {
-                        // Optionally, re-read values to confirm they were set
                         addLog(consoleOutput, '--- Server properties saved. A restart may be required for some changes. ---');
                     }
                 })
@@ -401,6 +400,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Error saving properties:', err);
                     alert('プロパティの保存中にエラーが発生しました。');
                 });
+        });
+    }
+
+    const propertySearchInput = document.getElementById('property-search-input');
+    if (propertySearchInput) {
+        propertySearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const items = propertiesContainer.querySelectorAll('.property-item');
+
+            items.forEach(item => {
+                const label = item.querySelector('label').textContent.toLowerCase();
+                const desc = item.querySelector('.description').textContent.toLowerCase();
+                const inputElement = item.querySelector('[name]');
+                const key = inputElement ? inputElement.name.toLowerCase() : '';
+
+                if (label.includes(query) || desc.includes(query) || key.includes(query)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         });
     }
 
@@ -913,8 +933,16 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await fetch('/api/modrinth/check_updates', { method: 'POST' });
                 const updates = await response.json();
-                alert(updates.length > 0 ? `${updates.length}件の更新が見つかりました。` : '利用可能な更新はありません。');
-                refreshInstalledList(updates);
+                // Update the list first
+                await refreshInstalledList(updates);
+
+                // Then show the alert
+                if (updates.length > 0) {
+                    alert(`${updates.length}件の更新が見つかりました。リストを確認してください。`);
+                } else {
+                    alert('利用可能な更新はありません。');
+                }
+
             } catch (error) {
                 console.error('Error checking for updates:', error);
                 alert('更新のチェック中にエラーが発生しました。');
@@ -922,6 +950,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 checkUpdatesBtn.disabled = false;
                 checkUpdatesBtn.textContent = '更新をチェック';
             }
+        });
+    }
+
+    // Open Server Folder
+    const openFolderBtn = document.getElementById('open-folder-btn');
+    if (openFolderBtn) {
+        openFolderBtn.addEventListener('click', () => {
+            fetch('/api/open_folder', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status !== 'Success') {
+                        alert('フォルダを開けませんでした: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(err => console.error('Error opening folder:', err));
         });
     }
 
