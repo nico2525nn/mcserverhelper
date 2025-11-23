@@ -5,6 +5,7 @@ import webbrowser
 import threading
 import time
 import logging
+import json
 try:
     import simple_websocket
 except ImportError:
@@ -135,8 +136,27 @@ socketio = init_socketio(app)
 ownserver_web_process = None
 log_thread = None
 config = mc.load_config()
+MODRINTH_INSTALLED_FILE = 'modrinth_installed.json'
 
 # --- Helper Functions ---
+def load_installed_projects():
+    """Reads the list of installed Modrinth projects from the JSON file."""
+    if not os.path.exists(MODRINTH_INSTALLED_FILE):
+        return {}
+    try:
+        with open(MODRINTH_INSTALLED_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+def save_installed_projects(data):
+    """Saves the list of installed Modrinth projects to the JSON file."""
+    try:
+        with open(MODRINTH_INSTALLED_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except IOError as e:
+        print(f"Error saving installed projects file: {e}")
+
 def log_streamer(process):
     """サーバープロセスの出力を読み取り、WebSocket経由で送信する"""
     try:
@@ -319,10 +339,14 @@ def list_plugins_route():
     """pluginsフォルダ内のファイル一覧を返す"""
     return jsonify(files=list_files_in_dir('plugins'))
 
+@app.route('/api/installed_projects', methods=['GET'])
+def list_installed_projects_route():
+    """Returns the list of installed Modrinth projects from the JSON file."""
+    return jsonify(load_installed_projects())
+
 @app.route('/api/delete_mod/<path:filename>', methods=['DELETE'])
 def delete_mod_route(filename):
-    """Modファイルを削除する"""
-    # Sanitize filename to prevent directory traversal
+    """Modファイルを削除し、メタデータも更新する"""
     safe_filename = secure_filename(filename)
     if safe_filename != filename:
         return jsonify(status="Error", message="無効なファイル名です。"), 400
@@ -332,6 +356,13 @@ def delete_mod_route(filename):
     try:
         if os.path.isfile(file_path):
             os.remove(file_path)
+            
+            # Update metadata JSON
+            installed = load_installed_projects()
+            if safe_filename in installed:
+                del installed[safe_filename]
+                save_installed_projects(installed)
+
             socketio.emit('console_output', {'log': f"Mod '{safe_filename}' が削除されました。"})
             return jsonify(status="Success", message="ファイルが削除されました。")
         else:
@@ -341,7 +372,7 @@ def delete_mod_route(filename):
 
 @app.route('/api/delete_plugin/<path:filename>', methods=['DELETE'])
 def delete_plugin_route(filename):
-    """Pluginファイルを削除する"""
+    """Pluginファイルを削除し、メタデータも更新する"""
     safe_filename = secure_filename(filename)
     if safe_filename != filename:
         return jsonify(status="Error", message="無効なファイル名です。"), 400
@@ -351,12 +382,320 @@ def delete_plugin_route(filename):
     try:
         if os.path.isfile(file_path):
             os.remove(file_path)
+
+            # Update metadata JSON
+            installed = load_installed_projects()
+            if safe_filename in installed:
+                del installed[safe_filename]
+                save_installed_projects(installed)
+
             socketio.emit('console_output', {'log': f"Plugin '{safe_filename}' が削除されました。"})
             return jsonify(status="Success", message="ファイルが削除されました。")
         else:
             return jsonify(status="Error", message="ファイルが見つかりません。"), 404
     except OSError as e:
         return jsonify(status="Error", message=f"ファイルの削除中にエラーが発生しました: {e}"), 500
+
+# --- Modrinth API ---
+from modrinth_api import ModrinthClient, ModrinthApiException
+import modrinth_api # Keep for download_file
+modrinth_client = ModrinthClient(project_name="MCServerHelper", project_version="1.0.0")
+
+@app.route('/api/modrinth/search')
+def modrinth_search_route():
+    query = request.args.get('query', '')
+    game_version = request.args.get('game_version', '')
+    loader = request.args.get('loader', '')
+    project_type = request.args.get('project_type', 'mod') # Default to searching mods
+    limit = request.args.get('limit', 20)
+
+    facets = []
+    if game_version:
+        facets.append([f"versions:{v.strip()}" for v in game_version.split(',')])
+    if loader:
+        facets.append([f"categories:{l.strip()}" for l in loader.split(',')])
+    if project_type:
+        facets.append([f"project_type:{pt.strip()}" for pt in project_type.split(',')])
+
+    facets_str = json.dumps(facets) if facets else None
+    
+    try:
+        results = modrinth_client.search(query, limit=int(limit), facets=facets_str)
+        # API can return None or a dict without 'hits' on success, so handle it
+        if results and 'hits' in results:
+            return jsonify(results)
+        else:
+            return jsonify({"hits": []})
+            
+    except ModrinthApiException as e:
+        error_message = f"Modrinth API Error: {e}"
+        logging.error(error_message)
+        socketio.emit('console_output', {'log': f"ERROR: {error_message}"})
+        return jsonify({"hits": [], "error": str(e)}), 500
+
+@app.route('/api/modrinth/project/<project_id>/versions')
+def modrinth_project_versions_route(project_id):
+    loaders_str = request.args.get('loaders', '')
+    game_versions_str = request.args.get('game_versions', '')
+    
+    loaders = loaders_str.split(',') if loaders_str else None
+    game_versions = game_versions_str.split(',') if game_versions_str else None
+
+    versions = modrinth_client.get_project_versions(project_id, loaders=loaders, game_versions=game_versions)
+
+    if versions is not None: # Check for None explicitly as an empty list is a valid response
+        return jsonify(versions)
+    else:
+        return jsonify([]), 500
+
+@app.route('/api/modrinth/check_updates', methods=['POST'])
+def modrinth_check_updates_route():
+    installed_projects = load_installed_projects()
+    updates_available = []
+
+    for filename, project in installed_projects.items():
+        project_id = project.get('project_id')
+        installed_version_id = project.get('version_id')
+        
+        # Get the same context for updates
+        game_versions = project.get('game_versions')
+        loaders = project.get('loaders')
+
+        if not project_id or not installed_version_id:
+            continue
+
+        # Fetch latest versions matching the installed context
+        latest_versions = modrinth_client.get_project_versions(
+            project_id,
+            loaders=loaders,
+            game_versions=game_versions
+        )
+
+        if latest_versions:
+            latest_version = latest_versions[0] # The first one is the newest
+            if latest_version['id'] != installed_version_id:
+                updates_available.append({
+                    'filename': filename,
+                    'project_id': project_id,
+                    'project_title': project.get('project_title'),
+                    'installed_version_id': installed_version_id,
+                    'installed_version_name': project.get('version_name'),
+                    'latest_version_id': latest_version['id'],
+                    'latest_version_name': latest_version['name'],
+                    'project_type': project.get('project_type')
+                })
+    
+    return jsonify(updates_available)
+
+@app.route('/api/modrinth/install', methods=['POST'])
+def modrinth_install_route():
+    data = request.json
+    project_id = data.get('project_id')
+    version_id = data.get('version_id')
+    project_type = data.get('project_type', 'mod')  # 'mod', 'plugin', or 'datapack'
+    
+    # デバッグログ
+    socketio.emit('console_output', {'log': f"[DEBUG] Modrinth インストール: project_type='{project_type}', project_id='{project_id}'"})
+
+    if not version_id or not project_id:
+        return jsonify(status="Error", message="Project ID and Version ID are required."), 400
+
+    # Determine download directory based on project_type
+    # 検索条件で指定したproject_typeに基づいて配置先を決定
+    if project_type == 'plugin':
+        target_dir = 'plugins'
+    elif project_type == 'datapack':
+        target_dir = 'datapacks'
+    else:  # 'mod' or default
+        target_dir = 'mods'
+    
+    socketio.emit('console_output', {'log': f"配置先ディレクトリ: {target_dir}"})
+
+    # Get version details to find the file URL
+    version_info = modrinth_client.get_version(version_id)
+    if not version_info or not version_info.get('files'):
+        return jsonify(status="Error", message="Version information not found or version has no files."), 404
+
+    # Find the primary file to download
+    primary_file = next((f for f in version_info['files'] if f['primary']), version_info['files'][0])
+    
+    file_url = primary_file['url']
+    file_name = primary_file['filename']
+
+    # Notify UI about the download
+    socketio.emit('console_output', {'log': f"Downloading '{file_name}' from Modrinth..."})
+
+    # Download the file
+    downloaded_path = modrinth_api.download_file(file_url, target_dir, file_name)
+
+    if downloaded_path:
+        socketio.emit('console_output', {'log': f"Successfully installed '{file_name}' to '{target_dir}' folder."})
+        
+        # Save metadata
+        project_info = modrinth_client.get_project(project_id)
+        project_title = project_info.get('title', 'Unknown Project') if project_info else 'Unknown Project'
+
+        installed_projects = load_installed_projects()
+        
+        # Remove old entry if a different version of the same project is installed
+        # This assumes one version per project.
+        installed_projects = {k: v for k, v in installed_projects.items() if v.get('project_id') != project_id}
+
+        new_entry = {
+            "project_id": project_id,
+            "project_title": project_title,
+            "version_id": version_id,
+            "version_name": version_info.get('name', 'Unknown Version'),
+            "project_type": project_type,
+            "installed_file": file_name,
+            "icon_url": project_info.get('icon_url') if project_info else None,
+            "game_versions": version_info.get('game_versions', []),
+            "loaders": version_info.get('loaders', [])
+        }
+        # Use filename as key to handle multiple files from the same project (though current logic doesn't support it)
+        installed_projects[file_name] = new_entry
+        save_installed_projects(installed_projects)
+        
+        return jsonify(status="Success", message=f"Downloaded {file_name}", path=downloaded_path)
+    else:
+        socketio.emit('console_output', {'log': f"ERROR: Failed to download '{file_name}'."})
+        return jsonify(status="Error", message=f"Failed to download {file_name}."), 500
+
+# --- Server Software API ---
+from server_software_api import ServerSoftwareClient, ServerSoftwareException, download_file as sw_download_file
+
+server_software_client = ServerSoftwareClient()
+
+@app.route('/api/server_software/types')
+def software_types_route():
+    """サポートされているサーバーソフトウェアタイプのリストを返す"""
+    return jsonify(server_software_client.get_software_types())
+
+@app.route('/api/server_software/versions')
+def software_versions_route():
+    """指定されたソフトウェアタイプのバージョンリストを返す"""
+    software_type = request.args.get('project')
+    if not software_type:
+        return jsonify({"error": "Project parameter is required"}), 400
+
+    try:
+        client = server_software_client.get_client(software_type)
+        
+        if software_type == "vanilla":
+            versions = client.get_versions("release")
+        elif software_type == "paper":
+            versions = client.get_versions()
+        elif software_type == "purpur":
+            versions = client.get_versions()
+        elif software_type == "fabric":
+            versions = client.get_game_versions()
+        elif software_type == "neoforge":
+            versions = client.get_versions()
+        elif software_type == "forge":
+            # Forgeの場合、Minecraftバージョンのリストを返す
+            versions = client.get_mc_versions()
+        else:
+            return jsonify({"error": f"Unsupported project type: {software_type}"}), 400
+        
+        return jsonify(versions)
+
+    except ServerSoftwareException as e:
+        logging.error(f"Server software API Error ({software_type}): {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/server_software/builds')
+def software_builds_route():
+    """指定されたソフトウェアタイプとバージョンのビルドリストを返す"""
+    software_type = request.args.get('project')
+    version = request.args.get('version')
+    
+    if not software_type:
+        return jsonify({"error": "Project parameter is required"}), 400
+    if not version:
+        return jsonify({"error": "Version parameter is required"}), 400
+    
+    try:
+        client = server_software_client.get_client(software_type)
+        
+        if software_type == "paper":
+            builds = client.get_builds(version)
+            return jsonify(builds)
+        elif software_type == "purpur":
+            builds = client.get_builds(version)
+            return jsonify(builds)
+        elif software_type == "fabric":
+            # Fabricの場合、Loaderバージョンのリストを返す
+            loader_versions = client.get_loader_versions()
+            return jsonify(loader_versions)
+        elif software_type == "forge":
+            # Forgeの場合、指定されたMCバージョンのForgeバージョンリストを返す
+            forge_versions = client.get_versions_by_mc_version(version)
+            return jsonify(forge_versions)
+        elif software_type in ["vanilla", "neoforge"]:
+            # Vanilla と NeoForge にはビルドの概念がない
+            return jsonify([])
+        else:
+            return jsonify({"error": f"Unsupported project type: {software_type}"}), 400
+
+    except ServerSoftwareException as e:
+        logging.error(f"Server software API Error ({software_type}): {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/server_software/install', methods=['POST'])
+def install_server_software_route():
+    """サーバーソフトウェアをダウンロードしてインストールする"""
+    data = request.json
+    software_type = data.get('project')
+    version = data.get('version')
+    build = data.get('build')  # オプション
+
+    if not all([software_type, version]):
+        return jsonify(status="Error", message="Project and version are required."), 400
+
+    try:
+        client = server_software_client.get_client(software_type)
+        
+        # ダウンロードURLとファイル名を取得
+        if software_type == "vanilla":
+            download_url, filename = client.get_download_url(version)
+        elif software_type == "paper":
+            download_url, filename = client.get_download_url(version, build)
+        elif software_type == "purpur":
+            download_url, filename = client.get_download_url(version, build)
+        elif software_type == "fabric":
+            # buildはloader_versionとして使用
+            download_url, filename = client.get_download_url(version, build)
+        elif software_type == "neoforge":
+            download_url, filename = client.get_download_url(version)
+        elif software_type == "forge":
+            # versionはmc_version、buildはforge_versionとして使用
+            download_url, filename = client.get_download_url(version, build)
+        else:
+            return jsonify(status="Error", message=f"Unsupported project type: {software_type}."), 400
+        
+        # ダウンロード実行
+        socketio.emit('console_output', {'log': f"サーバーソフトウェア '{filename}' をダウンロード中..."})
+        downloaded_path = sw_download_file(download_url, '.', filename)
+
+        if downloaded_path:
+            socketio.emit('console_output', {'log': f"'{filename}' のダウンロードが完了しました。"})
+            
+            # 設定を更新
+            global config
+            config['jar_path'] = os.path.basename(downloaded_path)
+            mc.save_config(config)
+            socketio.emit('console_output', {'log': f"サーバーJARパスを '{config['jar_path']}' に設定しました。"})
+
+            return jsonify(status="Success", message=f"{filename} をダウンロードしました", jar_path=config['jar_path'])
+        else:
+            socketio.emit('console_output', {'log': f"ERROR: '{filename}' のダウンロードに失敗しました。"})
+            return jsonify(status="Error", message="ダウンロードに失敗しました。"), 500
+
+    except ServerSoftwareException as e:
+        error_message = f"サーバーソフトウェアAPIエラー ({software_type}): {e}"
+        logging.error(error_message)
+        socketio.emit('console_output', {'log': f"ERROR: {error_message}"})
+        return jsonify(status="Error", message=str(e)), 500
 
 # --- Logic Functions ---
 def start_ownserver_web_logic():
