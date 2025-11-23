@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css" />
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <header>
         <h1>Minecraft Server Helper</h1>
@@ -152,7 +154,11 @@
 
             <!-- Mods and Plugins Upload -->
             <section class="card">
-                <h2>Mods & Plugins</h2>
+                <div class="section-header">
+                    <h2>Mods & Plugins</h2>
+                    <button id="check-updates-btn">更新をチェック</button>
+                </div>
+
                 {% if mods_folder_exists %}
                 <div class="upload-section">
                     <h3>Mods</h3>
@@ -160,7 +166,8 @@
                     <div class="drop-zone" id="mod-drop-zone" data-upload-type="mod">
                         <p>ここにファイルをドロップ</p>
                         <input type="file" id="mod-file-input" class="file-input" accept=".jar" multiple>
-                        <button class="file-select-btn" onclick="document.getElementById('mod-file-input').click()">ファイルを選択</button>
+                        <button class="file-select-btn"
+                            onclick="document.getElementById('mod-file-input').click()">ファイルを選択</button>
                     </div>
                     <div class="upload-status" id="mod-upload-status"></div>
                     <h4>インストール済み</h4>
@@ -177,7 +184,8 @@
                     <div class="drop-zone" id="plugin-drop-zone" data-upload-type="plugin">
                         <p>ここにファイルをドロップ</p>
                         <input type="file" id="plugin-file-input" class="file-input" accept=".jar" multiple>
-                        <button class="file-select-btn" onclick="document.getElementById('plugin-file-input').click()">ファイルを選択</button>
+                        <button class="file-select-btn"
+                            onclick="document.getElementById('plugin-file-input').click()">ファイルを選択</button>
                     </div>
                     <div class="upload-status" id="plugin-upload-status"></div>
                     <h4>インストール済み</h4>
@@ -192,11 +200,63 @@
                 {% endif %}
             </section>
 
+            <!-- Modrinth Browser -->
+            <section class="card">
+                <h2>Modrinth ブラウザ</h2>
+                <div class="modrinth-search-form">
+                    <div class="form-row">
+                        <input type="text" id="modrinth-search-query" placeholder="Mod/Pluginを検索...">
+                    </div>
+                    <div class="form-row form-row-filters">
+                        <input type="text" id="modrinth-game-version" placeholder="MCバージョン (例: 1.20.1)">
+                        <select id="modrinth-loader">
+                            <option value="">ローダーを選択</option>
+                            <option value="fabric">Fabric</option>
+                            <option value="forge">Forge</option>
+                            <option value="quilt">Quilt</option>
+                            <option value="liteloader">LiteLoader</option>
+                            <option value="bukkit">Bukkit</option>
+                            <option value="spigot">Spigot</option>
+                            <option value="paper">Paper</option>
+                        </select>
+                        <select id="modrinth-project-type">
+                            <option value="mod" selected>Mod</option>
+                            <option value="plugin">Plugin</option>
+                            <option value="datapack">Datapack</option>
+                        </select>
+                        <button id="modrinth-search-btn">検索</button>
+                    </div>
+                </div>
+                <div id="modrinth-results-container">
+                    <!-- Search results will be dynamically inserted here -->
+                </div>
+            </section>
+
             <!-- Settings -->
             <section class="card">
                 <h2>設定</h2>
+
+                <div id="server-software-downloader">
+                    <h4>サーバーソフトウェアをダウンロード</h4>
+                    <div class="software-downloader-grid">
+                        <select id="software-type-select" disabled>
+                            <option>タイプ</option>
+                        </select>
+                        <select id="software-mc-version-select" disabled>
+                            <option>MCバージョン</option>
+                        </select>
+                        <select id="software-build-select" disabled>
+                            <option>ビルド</option>
+                        </select>
+                        <button id="download-software-btn" disabled>ダウンロード＆設定</button>
+                    </div>
+                    <p class="description">サーバーの種類とバージョンを選択して、サーバーjarを自動でダウンロード・設定します。</p>
+                </div>
+
+                <hr class="section-divider">
+
                 <form id="config-form" class="config-form">
-                    <label for="jar-path-input">server.jar のパス:</label>
+                    <label for="jar-path-input">server.jar のパス (手動設定):</label>
                     <input type="text" id="jar-path-input" placeholder="例: server/paper.jar">
                     <button type="submit">保存</button>
                 </form>
@@ -216,4 +276,5 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="/static/app.js"></script>
 </body>
+
 </html>
