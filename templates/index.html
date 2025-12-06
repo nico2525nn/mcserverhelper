@@ -14,8 +14,17 @@
         <h1>MC Server Helper</h1>
     </header>
     <main class="container">
-        <!-- Left Column -->
-        <div class="column">
+        <!-- Tabs Header -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-home">ホーム</button>
+            <button class="tab-btn" data-tab="tab-manage">管理</button>
+            <button class="tab-btn" data-tab="tab-mods">Mods/Plugins</button>
+            <button class="tab-btn" data-tab="tab-network">ネットワーク</button>
+            <button class="tab-btn" data-tab="tab-system">システム</button>
+        </div>
+
+        <!-- Tab: Home -->
+        <div id="tab-home" class="tab-content active">
             <!-- 1. Server Control -->
             <section class="card">
                 <h2>サーバーコントロール</h2>
@@ -58,7 +67,10 @@
                     <button type="submit">送信</button>
                 </form>
             </section>
+        </div>
 
+        <!-- Tab: Manage -->
+        <div id="tab-manage" class="tab-content">
             <!-- 3. Quick Commands -->
             <section class="card">
                 <h2>クイックコマンド</h2>
@@ -88,6 +100,30 @@
                 </div>
             </section>
 
+            <!-- 6. Server Properties -->
+            <section class="card">
+                <details class="collapsible-section" open> <!-- Default to open in tab view -->
+                    <summary>
+                        <h2>サーバープロパティ (server.properties)</h2>
+                    </summary>
+                    <div class="details-content">
+                        <div class="property-search-container">
+                            <input type="text" id="property-search-input" placeholder="設定を検索 (日本語名、ID、説明)...">
+                        </div>
+                        <form id="properties-form" class="properties-form">
+                            <div id="properties-container" class="properties-grid">
+                                <!-- Properties will be dynamically inserted here -->
+                            </div>
+                            <button type="submit" class="save-btn">設定を保存</button>
+                        </form>
+                        <small>サーバーを再起動すると、一部の設定が反映されます。</small>
+                    </div>
+                </details>
+            </section>
+        </div>
+
+        <!-- Tab: Mods -->
+        <div id="tab-mods" class="tab-content">
             <!-- 4. Mods & Plugins Upload -->
             <section class="card">
                 <div class="section-header">
@@ -169,29 +205,8 @@
             </section>
         </div>
 
-        <!-- Right Column -->
-        <div class="column">
-            <!-- 6. Server Properties -->
-            <section class="card">
-                <details class="collapsible-section">
-                    <summary>
-                        <h2>サーバープロパティ (server.properties)</h2>
-                    </summary>
-                    <div class="details-content">
-                        <div class="property-search-container">
-                            <input type="text" id="property-search-input" placeholder="設定を検索 (日本語名、ID、説明)...">
-                        </div>
-                        <form id="properties-form" class="properties-form">
-                            <div id="properties-container" class="properties-grid">
-                                <!-- Properties will be dynamically inserted here -->
-                            </div>
-                            <button type="submit" class="save-btn">設定を保存</button>
-                        </form>
-                        <small>サーバーを再起動すると、一部の設定が反映されます。</small>
-                    </div>
-                </details>
-            </section>
-
+        <!-- Tab: Network -->
+        <div id="tab-network" class="tab-content">
             <!-- 7. Ownserver (Minecraft) -->
             <section class="card">
                 <h2>Ownserver (Minecraft)</h2>
@@ -229,7 +244,10 @@
                     </div>
                 </div>
             </section>
+        </div>
 
+        <!-- Tab: System -->
+        <div id="tab-system" class="tab-content">
             <!-- 9. Backups -->
             <section class="card">
                 <h2>バックアップ</h2>

@@ -968,5 +968,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Tab Navigation ---
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.tab;
+
+            // Deactivate all
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Activate target
+            btn.classList.add('active');
+            const targetContent = document.getElementById(targetId);
+            if (targetContent) {
+                targetContent.classList.add('active');
+            }
+        });
+    });
+
     console.log("MC Server Helper UI Initialized");
 });
