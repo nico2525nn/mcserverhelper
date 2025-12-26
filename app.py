@@ -603,6 +603,40 @@ def modrinth_install_route():
         socketio.emit('console_output', {'log': f"ERROR: Failed to download '{file_name}'."})
         return jsonify(status="Error", message=f"Failed to download {file_name}."), 500
 
+# --- File Selection API ---
+@app.route('/api/select_file_dialog', methods=['GET'])
+def select_file_dialog_route():
+    """サーバー側でファイル選択ダイアログを開き、パスを返す"""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Tkinterのルートウィンドウを作成（非表示）
+        # メインスレッド以外での実行トラブルを避けるため、必要なときだけ作成して破棄する
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True) # 最前面に表示
+        
+        # ダイアログを開く
+        file_path = filedialog.askopenfilename(
+            title="server.jar を選択してください",
+            filetypes=[("JAR files", "*.jar"), ("All files", "*.*")]
+        )
+        
+        root.destroy()
+        
+        if file_path:
+            # パスが見つかった場合、バックスラッシュをスラッシュに変換（クロスプラットフォーム対応のため）
+            normalized_path = file_path.replace('\\', '/')
+            return jsonify(status="Success", path=normalized_path)
+        else:
+            return jsonify(status="Cancelled"), 200
+            
+    except Exception as e:
+        error_msg = f"ファイル選択ダイアログの起動に失敗しました: {e}"
+        logging.error(error_msg)
+        return jsonify(status="Error", message=error_msg), 500
+
 # --- Server Software API ---
 from server_software_api import ServerSoftwareClient, ServerSoftwareException, download_file as sw_download_file
 
