@@ -283,8 +283,11 @@
 
                 <form id="config-form" class="config-form">
                     <label for="jar-path-input">server.jar のパス (相対パス可):</label>
-                    <input type="text" id="jar-path-input" placeholder="例: server/paper.jar">
-                    <button type="submit">保存</button>
+                    <div class="input-with-buttons">
+                        <input type="text" id="jar-path-input" placeholder="例: server/paper.jar">
+                        <button type="button" id="select-jar-btn" class="qc-btn">📁 参照</button>
+                        <button type="submit">保存</button>
+                    </div>
                 </form>
             </section>
 

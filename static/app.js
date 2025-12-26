@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Config
     const configForm = document.getElementById('config-form');
     const jarPathInput = document.getElementById('jar-path-input');
+    const selectJarBtn = document.getElementById('select-jar-btn');
 
     // Server Properties
     const propertiesForm = document.getElementById('properties-form');
@@ -260,6 +261,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 
+    if (selectJarBtn) {
+        selectJarBtn.addEventListener('click', () => {
+            fetch('/api/select_file_dialog')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'Success') {
+                        jarPathInput.value = data.path;
+                    } else if (data.status === 'Error') {
+                        alert(data.message);
+                    }
+                })
+                .catch(err => {
+                    console.error('Error opening file dialog:', err);
+                });
+        });
+    }
+
     // Quick Commands
     if (quickCommandsContainer) {
         quickCommandsContainer.addEventListener('click', (e) => {
@@ -478,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadSoftwareBtn.disabled = true;
 
         if (project === 'vanilla') {
-            softwareBuildSelect.innerHTML = '<option value="">ビルドなし</option>';
+            softwareBuildSelect.innerHTML = '<option value="">最新バージョン</option>';
             softwareBuildSelect.disabled = true; // Vanilla has no builds
             downloadSoftwareBtn.disabled = false; // Enable download for Vanilla without build
             return;
