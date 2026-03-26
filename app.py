@@ -6,10 +6,14 @@ import threading
 import time
 import logging
 import json
+import io
+import zipfile
+
 try:
     import simple_websocket
 except ImportError:
     pass
+
 
 def check_and_install_dependencies():
     """必要なライブラリがインストールされているか確認し、なければインストールする"""
@@ -40,6 +44,7 @@ def check_and_install_dependencies():
 # --- スクリプト開始時に依存関係をチェック ---
 check_and_install_dependencies()
 
+import requests
 from flask import Flask, render_template, jsonify, request
 from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit
@@ -542,6 +547,62 @@ def modrinth_install_route():
     if not version_id or not project_id:
         return jsonify(status="Error", message="Project ID and Version ID are required."), 400
 
+    def select_best_file(files, project_type):
+        if not files:
+            return None
+        if len(files) == 1:
+            return files[0]
+            
+        # 一次判定: ファイル名での推論
+        plugin_keywords = ['paper', 'spigot', 'bukkit', 'purpur', 'folia', 'velocity', 'waterfall']
+        mod_keywords = ['fabric', 'forge', 'neoforge', 'quilt']
+        
+        scored_files = []
+        for f in files:
+            fname = f['filename'].lower()
+            score = 0
+            
+            if project_type == 'plugin':
+                if any(k in fname for k in plugin_keywords): score += 10
+                if any(k in fname for k in mod_keywords): score -= 10
+            elif project_type == 'mod':
+                if any(k in fname for k in mod_keywords): score += 10
+                if any(k in fname for k in plugin_keywords): score -= 10
+                    
+            if 'api' in fname: score -= 5
+            if 'sources' in fname or '-dev' in fname or 'javadoc' in fname: score -= 20
+                
+            scored_files.append((score, f))
+            
+        scored_files.sort(key=lambda x: x[0], reverse=True)
+        best_score = scored_files[0][0]
+        best_candidates = [f for score, f in scored_files if score == best_score]
+        
+        if len(best_candidates) == 1:
+            return best_candidates[0]
+            
+        # 二次判定が必要なケース
+        primary_file = next((f for f in best_candidates if f.get('primary')), None)
+        
+        for f in best_candidates:
+            try:
+                # 50MB以下ならメモリ上でZIPエントリを確認
+                if f.get('size', 0) < 50 * 1024 * 1024:
+                    socketio.emit('console_output', {'log': f"[DEBUG] ファイル内容を確認中...: {f['filename']}"})
+                    resp = requests.get(f['url'], timeout=10)
+                    with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+                        namelist = z.namelist()
+                        if project_type == 'plugin':
+                            if any(name in namelist for name in ['plugin.yml', 'paper-plugin.yml', 'bungee.yml', 'velocity-plugin.json']):
+                                return f
+                        elif project_type == 'mod':
+                            if any(name in namelist for name in ['fabric.mod.json', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml']):
+                                return f
+            except Exception as e:
+                logging.warning(f"Failed to inspect inner JAR {f['filename']}: {e}")
+                
+        return primary_file or best_candidates[0]
+
     # Determine download directory based on project_type
     # 検索条件で指定したproject_typeに基づいて配置先を決定
     if project_type == 'plugin':
@@ -558,8 +619,10 @@ def modrinth_install_route():
     if not version_info or not version_info.get('files'):
         return jsonify(status="Error", message="Version information not found or version has no files."), 404
 
-    # Find the primary file to download
-    primary_file = next((f for f in version_info['files'] if f['primary']), version_info['files'][0])
+    # Find the optimal file to download based on logic
+    primary_file = select_best_file(version_info['files'], project_type)
+    if not primary_file:
+        return jsonify(status="Error", message="適切なファイルが見つかりません。"), 404
     
     file_url = primary_file['url']
     file_name = primary_file['filename']

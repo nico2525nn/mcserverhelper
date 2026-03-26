@@ -828,15 +828,39 @@ document.addEventListener('DOMContentLoaded', () => {
             const versions = await response.json();
             selectElement.innerHTML = '';
             if (versions && versions.length > 0) {
+                // Determine target loaders for filtering
+                let targetLoaders = [];
+                if (modrinthLoader.value) {
+                    targetLoaders = [modrinthLoader.value];
+                } else if (loaders.length > 0) {
+                    targetLoaders = loaders;
+                }
+
+                let addedOptions = 0;
                 versions.forEach(version => {
-                    const option = document.createElement('option');
-                    option.value = version.id;
-                    option.textContent = version.name;
-                    option.title = `MC: ${version.game_versions.join(', ')} | Loader: ${version.loaders.join(', ')}`;
-                    selectElement.appendChild(option);
+                    // Filter: At least one loader in version.loaders should be in targetLoaders
+                    // If targetLoaders is empty (e.g. datapack), allow all
+                    let isCompatible = true;
+                    if (targetLoaders.length > 0 && version.loaders) {
+                        isCompatible = version.loaders.some(l => targetLoaders.includes(l));
+                    }
+
+                    if (isCompatible) {
+                        const option = document.createElement('option');
+                        option.value = version.id;
+                        option.textContent = version.name;
+                        option.title = `MC: ${version.game_versions.join(', ')} | Loader: ${version.loaders.join(', ')}`;
+                        selectElement.appendChild(option);
+                        addedOptions++;
+                    }
                 });
-                selectElement.disabled = false;
-                installBtn.disabled = false;
+
+                if (addedOptions > 0) {
+                    selectElement.disabled = false;
+                    installBtn.disabled = false;
+                } else {
+                    selectElement.innerHTML = '<option>対応するバージョンなし</option>';
+                }
             } else {
                 selectElement.innerHTML = '<option>利用可能なバージョンなし</option>';
             }
